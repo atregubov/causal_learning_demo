@@ -16,7 +16,7 @@ def to_nx_DAG(d_model, verbose=False):
     """
     dot_G = pydot.graph_from_dot_data("graph " + d_model)[0]
     nx_multi_G = nx.nx_pydot.from_pydot(dot_G)
-    G = nx.MultiDiGraph() # MultiDiGraph
+    G = nx.MultiDiGraph()  # MultiDiGraph
     G.add_nodes_from(nx_multi_G.nodes)
     G.add_edges_from(list(map(lambda x: (x[1], x[0]), nx_multi_G.edges)))
     return G
@@ -58,9 +58,10 @@ def sample_schedules_with_given_dist(start_time, n_actions, site_index, narrativ
     return actions
 
 
-def generate_script(n_agents, n_actions, n_sites, start_time, activity_dist, narrative_dist, n_lines_per_post={0:[1,3],
-                                                                                                               1:[1,3],
-                                                                                                               2:[1,3]}):
+def generate_script(n_agents, n_actions, n_sites, start_time, activity_dist, narrative_dist,
+                    n_lines_per_post={0: [1, 3],
+                                      1: [1, 3],
+                                      2: [1, 3]}):
     """
     Generate agent actions from given distributions for all sites.
     :param n_agents number of agents
@@ -83,11 +84,13 @@ def generate_script(n_agents, n_actions, n_sites, start_time, activity_dist, nar
             users[user_id]['training'] = []
             users[user_id]['site'] = site_index
             users[user_id]['reddit']['script'] = sample_schedules_with_given_dist(start_time,
-                                                                            random.randint(n_actions[site_index][0], n_actions[site_index][1]),
-                                                                            site_index,
-                                                                            narrative_dist[site_index],
-                                                                            activity_dist[site_index],
-                                                                            n_lines_per_post)
+                                                                                  random.randint(
+                                                                                      n_actions[site_index][0],
+                                                                                      n_actions[site_index][1]),
+                                                                                  site_index,
+                                                                                  narrative_dist[site_index],
+                                                                                  activity_dist[site_index],
+                                                                                  n_lines_per_post)
 
     return users
 
@@ -101,13 +104,14 @@ class Rule(ABC):
                                         [[list_of_actions] | 1_0_-1_ban | rule_name         | feature_name ]
     """
 
-    def __init__(self, name: str, rule_str: str, feature_names: list, platform="reddit"):
+    def __init__(self, name: str, rule_str: str, feature_names: list, outcome_name: str = "ban", platform="reddit"):
         self.name = name
         self.rule_str = rule_str
         self.feature_names = feature_names
         self.feature_fns = {f_name: None for f_name in feature_names}
         self.fit_data = None
         self.platform = platform
+        self.outcome_name = outcome_name
 
     def name(self) -> str:
         return self.name
@@ -127,15 +131,15 @@ class Rule(ABC):
         """
         G = nx.MultiDiGraph()
         G.add_nodes_from(self.feature_names)
-        G.add_nodes_from(["ban"])
-        G.add_edges_from([(f, "ban") for f in self.feature_names])
+        G.add_nodes_from([self.outcome_name])
+        G.add_edges_from([(f, self.outcome_name) for f in self.feature_names])
 
         return G
 
     @abstractmethod
     def pred(self, schedule: dict, start_time: int = 0, curr_time: int = None):
         """
-        Predict ban, predicted ban is added to the schedule ( in schedule[user_id][self.platform]["triggered_rules"][self.rule_name] ).
+        Predict outcome value (e.g. ban), predicted outcome is added to the schedule ( in schedule[user_id][self.platform]["triggered_rules"][self.rule_name] ).
         """
         return None
 
@@ -149,7 +153,6 @@ class Rule(ABC):
                     u_schedule[self.platform]["features"] = {feature_name: None}
                 u_schedule[self.platform]["features"][feature_name] = self.feature_fns[feature_name](
                     u_schedule[self.platform]["script"], feature_name, start_time, curr_time)
-
 
     @abstractmethod
     def fit(self, schedule: dict, start_time: int = 0, curr_time: int = None):
@@ -190,14 +193,16 @@ class SleepHoursRule(Rule):
                 if h != 0:
                     if isinstance(self.fit_data['sleep_hours'], dict):
                         if self.fit_data['sleep_hours']['banned']['min'] <= index <= \
-                                self.fit_data['sleep_hours']['banned']['max']:  # this assumes that first k-elements in hours_of_sleep_dist are sleep hours.
+                                self.fit_data['sleep_hours']['banned'][
+                                    'max']:  # this assumes that first k-elements in hours_of_sleep_dist are sleep hours.
                             banned_by_min_sleep_hours = True
                         elif self.fit_data['sleep_hours']['notbanned']['min'] <= index <= \
                                 self.fit_data['sleep_hours']['notbanned']['max']:
                             ban_status_unknown = True
                         break
                     else:
-                        if index < self.fit_data['sleep_hours']:  # this assumes that first k-elements in hours_of_sleep_dist are sleep hours.
+                        if index < self.fit_data[
+                            'sleep_hours']:  # this assumes that first k-elements in hours_of_sleep_dist are sleep hours.
                             banned_by_min_sleep_hours = True
                         break
 
@@ -358,6 +363,3 @@ if __name__ == '__main__':
     sleep_h_rule.fit(schedule_before_rescheduling, 0)
 
     print(schedule_before_rescheduling)
-
-
-
