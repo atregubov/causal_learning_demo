@@ -3,78 +3,96 @@ import matplotlib.pyplot as plt
 import networkx as nx
 
 
-def get_tree(n_nodes = 3):
-    edgelist = [("sleep_hours", "ban"), ("total_number_of_posts", "sleep_hours")]
-    if n_nodes == 2:
-        edgelist = [("total_number_of_posts", "ban")]
-    G = nx.DiGraph(edgelist)  # use Graph constructor
-
-
+def get_DAG_fig(G):
+    # edgelist = [("sleep_hours", "ban"), ("total_number_of_posts", "sleep_hours")]
+    # if n_nodes == 2:
+    #     edgelist = [("total_number_of_posts", "ban")]
+    # G = nx.DiGraph(edgelist)  # use Graph constructor
     lay = nx.layout.circular_layout(G)
-
     position = {node: lay[node] for node in G.nodes}
-    X = [lay[k][0] for k in list(G.nodes)]
-    M = max(X)
 
-    Yn = [position[k][0] for k in list(G.nodes)]
-    Xn = [2*M-position[k][1] for k in list(G.nodes)]
-    Xe = []
-    Ye = []
-    for edge in list(G.edges):
-        Ye+=[position[edge[0]][0],position[edge[1]][0], None]
-        Xe+=[2*M-position[edge[0]][1],2*M-position[edge[1]][1], None]
+    edge_x = []
+    edge_y = []
+    for edge in G.edges():
+        x0, y0 = position[edge[0]]
+        x1, y1 = position[edge[1]]
+        edge_x.append(x0)
+        edge_x.append(x1)
+        edge_y.append(y0)
+        edge_y.append(y1)
 
-    labels = list(G.nodes)
+    edge_trace = go.Scatter(
+        x=edge_x, y=edge_y,
+        line=dict(width=0, color='white'),
+        hoverinfo='none',
+        mode='lines')
 
-    def make_annotations(Xn_, Yn_, text, font_size=10, font_color='rgb(250,250,250)'):
-        annotations = []
-        for idx, node in enumerate(G.nodes):
-            annotations.append(
-                dict(
-                    text=text[idx],  # or replace labels with a different list for the text within the circle
-                    y=Yn_[idx], x=Xn_[idx],
-                    xref='x1', yref='y1',
-                    font=dict(color=font_color, size=font_size),
-                    showarrow=False)
-            )
-        return annotations
+    node_x = []
+    node_y = []
+    for node in G.nodes():
+        x, y = position[node]
+        node_x.append(x)
+        node_y.append(y)
 
-    fig = go.Figure()
-    fig.add_trace(go.Scatter(x=Xe,
-                             y=Ye,
-                             mode='lines+markers',
-                             marker=dict(size=10, symbol="arrow-bar-up"),
-                             line=dict(color='rgb(10,10,10)', width=4),
-                             hoverinfo='none'
-                             ))
-    fig.add_trace(go.Scatter(x=Xn,
-                             y=Yn,
-                             mode='markers',
-                             marker=dict(symbol='circle-dot',
-                                    size=70,
-                                    color='#6175c1',    #'#DB4551',
-                                    line=dict(color='rgb(50,50,50)', width=1)
-                                    ),
-                             text=labels,
-                             hoverinfo='text',
-                             opacity=0.8
-                             ))
+    node_trace = go.Scatter(
+        x=node_x, y=node_y,
+        mode='markers+text',
+        hoverinfo='text',
+        textposition="bottom center",
+        marker=dict(
+            showscale=False,
+            # colorscale options
+            # 'Greys' | 'YlGnBu' | 'Greens' | 'YlOrRd' | 'Bluered' | 'RdBu' |
+            # 'Reds' | 'Blues' | 'Picnic' | 'Rainbow' | 'Portland' | 'Jet' |
+            # 'Hot' | 'Blackbody' | 'Earth' | 'Electric' | 'Viridis' |
+            colorscale='Bluered',
+            reversescale=True,
+            color=[],
+            size=60,
+            line_width=2))
 
-    axis = dict(showline=False,  # hide axis line, grid, ticklabels and  title
-                zeroline=False,
-                showgrid=False,
-                showticklabels=False,
-                )
+    node_adjacencies = []
+    node_text = list(G.nodes)
+    for node, adjacencies in enumerate(G.adjacency()):
+        node_adjacencies.append(len(adjacencies[1]))
 
-    fig.update_layout(annotations=make_annotations(Xn, Yn, list(G.nodes)),
-                      font_size=12,
-                      showlegend=False,
-                      xaxis=axis,
-                      yaxis=axis,
-                      margin=dict(l=1, r=1, b=1, t=1),
-                      hovermode='closest',
-                      plot_bgcolor='rgb(248,248,248)'
-                      )
+    node_trace.marker.color = node_adjacencies
+    node_trace.text = node_text
+
+    fig = go.Figure(data=[edge_trace, node_trace],
+                    layout=go.Layout(
+                        showlegend=False,
+                        hovermode='closest',
+                        margin=dict(b=1, l=1, r=1, t=1),
+                        xaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
+                        yaxis=dict(showgrid=False, zeroline=False, showticklabels=False))
+                    )
+
+    x_end = [x for idx, x in enumerate(edge_x) if idx % 2 == 1]
+    y_end = [x for idx, x in enumerate(edge_y) if idx % 2 == 1]
+    x_start = [x for idx, x in enumerate(edge_x) if idx % 2 == 0]
+    y_start = [x for idx, x in enumerate(edge_y) if idx % 2 == 0]
+
+    list_of_all_arrows = []
+    for x0, y0, x1, y1 in zip(x_end, y_end, x_start, y_start):
+        arrow = go.layout.Annotation(dict(
+            x=x0,
+            y=y0,
+            xref="x", yref="y",
+            showarrow=True,
+            axref="x", ayref='y',
+            ax=x1,
+            ay=y1,
+            arrowhead=3,
+            arrowwidth=2.5,
+            arrowcolor='black', )
+        )
+        list_of_all_arrows.append(arrow)
+
+    fig.update_layout(annotations=list_of_all_arrows)
+
+
+
     return fig
 
 

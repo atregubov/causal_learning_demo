@@ -104,17 +104,17 @@ class Rule(ABC):
                                         [[list_of_actions] | 1_0_-1_ban | rule_name         | feature_name ]
     """
 
-    def __init__(self, name: str, rule_str: str, feature_names: list, outcome_name: str = "ban", platform="reddit"):
+    def __init__(self, name: str, rule_str: str, outcome_name: str, rules: list, depends_on: list = [],
+                 platform="reddit"):
         self.name = name
         self.rule_str = rule_str
-        self.feature_names = feature_names
-        self.feature_fns = {f_name: None for f_name in feature_names}
+        self.rules = rules
         self.fit_data = None
         self.platform = platform
         self.outcome_name = outcome_name
+        self.depends_on = depends_on
+        self.local = True
 
-    def name(self) -> str:
-        return self.name
 
     def rule_str(self) -> str:
         return self.rule_str
@@ -124,6 +124,93 @@ class Rule(ABC):
 
     def __repr__(self):
         return f"Rule: {self.rule_str}"
+
+    def get_DAG(self) -> nx.MultiDiGraph:
+        """
+        Creates an NX graph with features nodes pointing at the ban node.
+        """
+        G = nx.MultiDiGraph()
+        for rule in self.rules:
+            rule_G = rule.get_DAG()
+            G.add_nodes_from(list(rule_G.nodes))
+            G.add_edges_from(list(rule_G.edges))
+
+        return G
+
+    @abstractmethod
+    def pred(self, schedule: dict, start_time: int = 0, curr_time: int = None):
+        """
+        Predict outcome value (e.g. ban), predicted outcome is added to the schedule ( in schedule[user_id][self.platform]["triggered_rules"][self.rule_name] ).
+        """
+        return None
+
+    @abstractmethod
+    def fit(self, schedule: dict, start_time: int = 0, curr_time: int = None):
+        """
+        Updates self.fit_data (e.g. thresholds, weights, and other rule parameters) to fit observations.
+        The schedule must have ban labels in schedule[user_id][self.platform]["ban"]
+        """
+        return None
+
+
+class AggregateRule(Rule):
+    """
+    Rule class defines causal relationship between ban node (outcome) causing factors node (features).
+    The schedule must have the following structure:
+    schedule[user_id][self.platform]
+                                    [ "script"             | "ban"      | "triggered_rules" | "features"]
+                                        [[list_of_actions] | 1_0_-1_ban | rule_name         | feature_name ]
+    """
+
+    def __init__(self, name: str, rule_str: str, outcome_name: str, rules: list, platform="reddit"):
+        super().__init__(name, rule_str, outcome_name, rules, [], platform)
+        self.fit_data = None
+
+    def get_DAG(self) -> nx.MultiDiGraph:
+        """
+        Creates an NX graph with features nodes pointing at the ban node.
+        """
+        G = nx.MultiDiGraph()
+        for rule in self.rules:
+            rule_G = rule.get_DAG()
+            G.add_nodes_from(list(rule_G.nodes))
+            G.add_edges_from(list(rule_G.edges))
+
+        return G
+
+    def pred(self, schedule: dict, start_time: int = 0, curr_time: int = None):
+        """
+        Predict outcome value (e.g. ban), predicted outcome is added to the schedule
+        ( in schedule[user_id][self.platform]["triggered_rules"][self.rule_name] ).
+        """
+        pred_vals = list()
+        for rule in self.rules:
+            pred_vals.append(rule.pred(schedule, start_time, curr_time))
+        return max(pred_vals)
+
+    def fit(self, schedule: dict, start_time: int = 0, curr_time: int = None):
+        """
+        Updates self.fit_data (e.g. thresholds, weights, and other rule parameters) to fit observations.
+        The schedule must have ban labels in schedule[user_id][self.platform]["ban"]
+        """
+        for rule in self.rules:
+            rule.fit(schedule, start_time, curr_time)
+
+
+class BasicRule(Rule):
+    """
+    Rule class defines causal relationship between ban node (outcome) causing factors node (features).
+    The schedule must have the following structure:
+    schedule[user_id][self.platform]
+                                    [ "script"             | "ban"      | "triggered_rules" | "features"]
+                                        [[list_of_actions] | 1_0_-1_ban | rule_name         | feature_name ]
+    """
+
+    def __init__(self, name: str, rule_str: str, feature_names: list, outcome_name: str = "ban", platform="reddit"):
+        super().__init__(name, rule_str, outcome_name, [], [], platform)
+        self.feature_names = feature_names
+        self.feature_fns = {f_name: None for f_name in feature_names}
+        self.fit_data = None
 
     def get_DAG(self) -> nx.MultiDiGraph:
         """
@@ -163,7 +250,7 @@ class Rule(ABC):
         return None
 
 
-class SleepHoursRule(Rule):
+class SleepHoursRule(BasicRule):
     def __init__(self):
         super().__init__("sleep_hours_rule",
                          "if sleep_hours in to_ban_range -> ban and if sleep_hours in not_to_ban_range -> no ban",
@@ -238,7 +325,7 @@ class SleepHoursRule(Rule):
             f_data['notbanned']['max'] = bans_df[bans_df['ban'] == 0]["sleep_end"].max()
 
 
-class TotalNumberOfPostsRule(Rule):
+class TotalNumberOfPostsRule(BasicRule):
     def __init__(self):
         super().__init__("total_number_of_posts",
                          "if total_number_of_posts in to_ban_range -> ban and if total_number_of_posts in not_to_ban_range -> no ban",
@@ -362,4 +449,13 @@ if __name__ == '__main__':
     sleep_h_rule.pred(schedule_before_rescheduling, 0)
     sleep_h_rule.fit(schedule_before_rescheduling, 0)
 
-    print(schedule_before_rescheduling)
+    sleep_h_rule2 = SleepHoursRule()
+    sleep_h_rule2.fit_data = {"sleep_hours": {"banned": {"min": 0, "max": 6}, "notbanned": {"min": 8, "max": 22}}}
+    sleep_h_rule2.pred(schedule_before_rescheduling, 0)
+    sleep_h_rule2.fit(schedule_before_rescheduling, 0)
+
+    complex_rule = AggregateRule("Complex Rule", "Two sleep rules", "ban",
+                                 [sleep_h_rule, sleep_h_rule2])
+
+    print(complex_rule.get_DAG())
+    #print(schedule_before_rescheduling)

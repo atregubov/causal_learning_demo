@@ -1,6 +1,7 @@
 import json
 from pathlib import Path
 import pandas as pd
+from data_processing.rules import SleepHoursRule, TotalNumberOfPostsRule, AggregateRule
 
 
 def load_users(users_path: Path):
@@ -27,7 +28,15 @@ def load_data(data_path: Path):
     :return: list of events
 
     """
-    data = load_json_into_df(data_path, True, False)
+    #data = load_json_into_df(data_path, True, False)
+    data = {"rules": [SleepHoursRule(), TotalNumberOfPostsRule()],
+            "local": [AggregateRule("Local sleep policy", "Trigger ban if constituent rule triggered",
+                                    "ban", [SleepHoursRule()])],
+            "shared": [AggregateRule("Shared policy on number of posts", "Trigger ban if constituent rule triggered",
+                                    "ban", [TotalNumberOfPostsRule()])],
+            "editor": AggregateRule("New policy", "Trigger ban if constituent rule triggered",
+                                    "ban", [SleepHoursRule()])
+            }
     return data
 
 
