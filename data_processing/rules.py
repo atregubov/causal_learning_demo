@@ -254,7 +254,7 @@ class SleepHoursRule(BasicRule):
     def __init__(self):
         super().__init__("sleep_hours_rule",
                          "if sleep_hours in to_ban_range -> ban and if sleep_hours in not_to_ban_range -> no ban",
-                         ["sleep_hours"], "reddit")
+                         ["sleep_hours"], "ban")
         self.feature_fns['sleep_hours'] = self._get_sleep_hours
 
     def _get_sleep_hours(self, actions_script: list, feature_name: str, start_time: int = 0, curr_time: int = None):
@@ -329,7 +329,7 @@ class TotalNumberOfPostsRule(BasicRule):
     def __init__(self):
         super().__init__("total_number_of_posts",
                          "if total_number_of_posts in to_ban_range -> ban and if total_number_of_posts in not_to_ban_range -> no ban",
-                         ["total_number_of_posts"], "reddit")
+                         ["total_number_of_posts"], "ban")
         self.feature_fns['total_number_of_posts'] = self._get_total_number_of_posts
 
     def _get_total_number_of_posts(self, actions_script: list, feature_name: str, start_time: int = 0,
