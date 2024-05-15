@@ -5,7 +5,7 @@ from abc import ABC, abstractmethod
 
 class Feature(ABC):
     """
-    Feature class defines how feature _name_ is computed. Feature class has a name and value() methods.
+    Abstract Feature class defines how feature _name_ is computed. Feature class has a name and value() methods.
     """
     def __init__(self, name: str, platform: str = "reddit"):
         self.name = name
@@ -18,60 +18,76 @@ class Feature(ABC):
         return f"Feature: {self.name}"
 
     @abstractmethod
-    def value(self, schedule: dict, start_time: int = 0, curr_time: int = None):
-        """
-        Compute feature value.
-        """
+    def _value_from_actions(self, actions_script: list, start_time: int = 0, curr_time: int = None):
         return None
-
-
-class SleepHoursFeature(Feature):
-    """
-    Feature class defines how feature _name_ is computed. Feature class has a name and value() methods.
-    """
-    def __init__(self, platform: str ="reddit"):
-        super().__init__("sleep_hours", platform)
-
-    def _get_sleep_hours(self, actions_script: list, start_time: int = 0):
-        hours_of_sleep_dist = [0 for _ in range(24)]
-        for action in actions_script:
-            hours_of_sleep_dist[int(((action['nodeTime'] - start_time) % (24 * 3600)) / 3600)] += 1
-
-        return hours_of_sleep_dist
 
     def value(self, schedule: dict, start_time: int = 0, curr_time: int = None):
         """
         Compute feature value. Feature value is added to the schedule
         ( in schedule[user_id][self.platform]["features"][feature_name] ).
+        The schedule must have the following structure:
+        schedule[user_id][self.platform]
+                                        [ "script"             | "ban"      | "triggered_rules" | "features"]
+                                        [[list_of_actions]     | 1_0_-1_ban | rule_name         | feature_name ]
+
         """
         for user_id, u_schedule in schedule.items():
             if "features" not in u_schedule[self.platform]:
                 u_schedule[self.platform]["features"] = {self.name: None}
             actions_script = u_schedule[self.platform]["script"]
-            u_schedule[self.platform]["features"][self.name] = self._get_sleep_hours(actions_script, start_time)
+            u_schedule[self.platform]["features"][self.name] = (
+                self._value_from_actions(actions_script, start_time, curr_time))
 
 
 class TotalNumberOfPostsFeature(Feature):
     """
-    Feature class defines how feature _name_ is computed. Feature class has a name and value() methods.
+    Feature total_number_of_posts, defined for each user.
     """
-
     def __init__(self, platform: str = "reddit"):
         super().__init__("total_number_of_posts", platform)
 
-    def _get_total_number_of_posts(self, actions_script: list):
+    def _value_from_actions(self, actions_script: list, start_time: int = 0, curr_time: int = None):
         return len(actions_script)
 
-    def value(self, schedule: dict, start_time: int = 0, curr_time: int = None):
-        """
-        Compute feature value. Feature value is added to the schedule
-        ( in schedule[user_id][self.platform]["features"][feature_name] ).
-        """
-        for user_id, u_schedule in schedule.items():
-            if "features" not in u_schedule[self.platform]:
-                u_schedule[self.platform]["features"] = {self.name: None}
-            actions_script = u_schedule[self.platform]["script"]
-            u_schedule[self.platform]["features"][self.name] = self._get_total_number_of_posts(actions_script)
+
+class TotalLinesFeature(Feature):
+    """
+    Feature total_number_of_posts, defined for each user.
+    """
+    def __init__(self, platform: str = "reddit"):
+        super().__init__("total_lines_of_posts", platform)
+
+    def _value_from_actions(self, actions_script: list, start_time: int = 0, curr_time: int = None):
+        total_lines = sum([v['n_lines'] for v in actions_script])
+        return total_lines
+
+
+class SleepHoursFeature(Feature):
+    """
+    Feature sleep_hours is a list of hours when user sleeps,  defined for each user.
+    """
+    def __init__(self, platform: str ="reddit"):
+        super().__init__("sleep_hours", platform)
+
+    def _value_from_actions(self, actions_script: list, start_time: int = 0, curr_time: int = None):
+        hours_of_sleep_dist = [0 for _ in range(24)]
+        for action in actions_script:
+            hours_of_sleep_dist[int(((action['nodeTime'] - start_time) % (24 * 3600)) / 3600)] += 1
+        return hours_of_sleep_dist
+
+
+class NarrativeRatioFeature(Feature):
+    """
+    Feature narrative_ratio, defined for each user.
+    """
+    def __init__(self, platform: str = "reddit"):
+        super().__init__("narrative_ratio", platform)
+
+    def _value_from_actions(self, actions_script: list, start_time: int = 0, curr_time: int = None):
+        script_df = pd.DataFrame(actions_script)
+        narrative_counts = script_df.groupby(["informationID"]).size().to_dict()
+        narrative_ratios = {k: v/len(actions_script) for k, v in narrative_counts.items()}
+        return narrative_ratios
 
 
 class Rule(ABC):
@@ -95,7 +111,6 @@ class Rule(ABC):
         self.rules = rules
         self.depends_on = depends_on
         self.features = features
-
 
     def rule_str(self) -> str:
         return self.rule_str
@@ -229,10 +244,80 @@ class BasicRule(Rule):
         return None
 
 
+class AbstractOneFeatureThresholdRule(BasicRule):
+    def pred(self, schedule: dict, start_time: int = 0, curr_time: int = None):
+        # update feature values
+        self.feature_values(schedule, start_time, curr_time)
+
+        # predict/evaluate ban
+        for user, u_schedule in schedule.items():
+            if "triggered_rules" not in u_schedule[self.platform]:
+                u_schedule[self.platform]["triggered_rules"] = dict()
+            u_schedule[self.platform]["triggered_rules"][self.name] = 0
+            feature_value = u_schedule[self.platform]["features"][self.features[0].name]
+
+            if isinstance(self.fit_data[self.name], dict):
+                banned = False
+                not_banned = False
+                ban_unknown = False
+
+                if (feature_value > self.fit_data[self.name]['banned']['min'] and
+                        feature_value < self.fit_data[self.name]['banned']['max']):
+                    banned = True
+                elif (feature_value > self.fit_data[self.name]['notbanned']['min'] and
+                      feature_value < self.fit_data[self.name]['notbanned']['max']):
+                    not_banned = True
+                else:
+                    ban_unknown = True
+
+                u_schedule[self.platform]["triggered_rules"][self.name] = 1 if banned else 0 if not_banned else -1
+
+            else:
+                u_schedule[self.platform]["triggered_rules"][self.name] = 1 \
+                    if feature_value > self.fit_data[self.features[0].name] else 0
+
+            if u_schedule[self.platform]["triggered_rules"][self.name] == 1:
+                u_schedule[self.platform]["ban"] = 1
+            else:
+                u_schedule[self.platform]["ban"] = 0
+
+    def fit(self, schedule: dict, start_time: int = 0, curr_time: int = None):
+        data = [{"ban": u_data[self.platform]["ban"],
+                 self.features[0].name: u_data[self.platform]["features"][self.features[0].name]
+                 } for u_id, u_data in schedule.items()]
+        self.fit_data[self.name] = {"banned": {"min": None, "max": None}, "notbanned": {"min": None, "max": None}}
+
+        f_data = self.fit_data[self.name]
+        bans_df = pd.DataFrame.from_records(data)
+        f_data['banned']['min'] = bans_df[bans_df['ban'] == 1][self.features[0].name].min()
+        f_data['banned']['max'] = bans_df[bans_df['ban'] == 1][self.features[0].name].max()
+        f_data['notbanned']['min'] = bans_df[bans_df['ban'] == 0][self.features[0].name].min()
+        f_data['notbanned']['max'] = bans_df[bans_df['ban'] == 0][self.features[0].name].max()
+
+
+class TotalNumberOfPostsRule(AbstractOneFeatureThresholdRule):
+    def __init__(self):
+        super().__init__("total_number_of_posts",
+                         "If the total number of all user posts \nis in the \"to_ban\" range -> ban.\n"
+                         "Also If the total number of all user posts \nis in the \"no_to_ban\" range -> no ban.\n"
+                         "Otherwise no ban.",
+                         [TotalNumberOfPostsFeature()], "ban")
+
+
+class TotalLinesOfPostsRule(AbstractOneFeatureThresholdRule):
+    def __init__(self):
+        super().__init__("total_lines_of_posts",
+                         "If the total number of lines \nin all user posts is in the \"to_ban\" range -> ban.\n"
+                         "Also If the total number of lines \nin all user posts is in the \"no_ban\" range -> no ban.\n"
+                         "Otherwise no ban.",
+                         [TotalLinesFeature()], "ban")
+
+
 class SleepHoursRule(BasicRule):
     def __init__(self):
-        super().__init__("sleep_hours_rule",
-                         "if sleep_hours in ban_range -> ban and if sleep_hours in not_to_ban_range -> no ban",
+        super().__init__("sleep_hours",
+                         "If hours when user is inactive (sleep_hours)\n are in the ban range -> ban.\n"
+                         "If sleep_hours are in the \"no_ban_range\" -> no ban",
                          [SleepHoursFeature()], "ban")
 
     def pred(self, schedule: dict, start_time: int = 0, curr_time: int = None):
@@ -244,27 +329,27 @@ class SleepHoursRule(BasicRule):
             if "triggered_rules" not in u_schedule[self.platform]:
                 u_schedule[self.platform]["triggered_rules"] = dict()
             u_schedule[self.platform]["triggered_rules"][self.name] = 0
-            hours_of_sleep_dist = u_schedule[self.platform]["features"]["sleep_hours"]
+            hours_of_sleep_dist = u_schedule[self.platform]["features"][self.features[0].name]
             banned_by_min_sleep_hours = False
             ban_status_unknown = False
             for index, h in enumerate(hours_of_sleep_dist):
                 if h != 0:
-                    if isinstance(self.fit_data['sleep_hours'], dict):
+                    if isinstance(self.fit_data[self.name], dict):
                         # this assumes that first k-elements in hours_of_sleep_dist are sleep hours:
-                        if (self.fit_data['sleep_hours']['banned']['min'] <= index <=
-                                self.fit_data['sleep_hours']['banned']['max']):
+                        if (self.fit_data[self.name]['banned']['min'] <= index <=
+                                self.fit_data[self.name]['banned']['max']):
                             banned_by_min_sleep_hours = True
-                        elif (self.fit_data['sleep_hours']['notbanned']['min'] <= index <=
-                                self.fit_data['sleep_hours']['notbanned']['max']):
+                        elif (self.fit_data[self.name]['notbanned']['min'] <= index <=
+                                self.fit_data[self.name]['notbanned']['max']):
                             ban_status_unknown = True
                         break
                     else:
                         # this assumes that first k-elements in hours_of_sleep_dist are sleep hours:
-                        if index < self.fit_data['sleep_hours']:
+                        if index < self.fit_data[self.name]:
                             banned_by_min_sleep_hours = True
                         break
 
-            if isinstance(self.fit_data['sleep_hours'], dict):
+            if isinstance(self.fit_data[self.name], dict):
                 u_schedule[self.platform]["triggered_rules"][self.name] = 1 \
                     if banned_by_min_sleep_hours else -1 if ban_status_unknown else 0
             else:
@@ -279,61 +364,68 @@ class SleepHoursRule(BasicRule):
     def fit(self, schedule: dict, start_time: int = 0, curr_time: int = None):
         data = [{"ban": u_data[self.platform]["ban"],
                  "sleep_bgn": min([hour_idx for hour_idx, val
-                                   in enumerate(u_data[self.platform]["features"]["sleep_hours"]) if val > 0]),
+                                   in enumerate(u_data[self.platform]["features"][self.features[0].name]) if val > 0]),
                  "sleep_end": max([hour_idx for hour_idx, val
-                                   in enumerate(u_data[self.platform]["features"]["sleep_hours"]) if val > 0])
+                                   in enumerate(u_data[self.platform]["features"][self.features[0].name]) if val > 0])
                  }
                 for u_id, u_data in schedule.items()]
+        self.fit_data[self.name] = {"banned": {"min": None, "max": None}, "notbanned": {"min": None, "max": None}}
+
         bans_df = pd.DataFrame.from_records(data)
-
-        for feature_name in [f.name for f in self.features]:
-            if feature_name not in self.fit_data:
-                self.fit_data[feature_name] = {"sleep_hours": {"banned": {"min": None, "max": None},
-                                                               "notbanned": {"min": None, "max": None}}}
-            f_data = self.fit_data[feature_name]
-            f_data['banned']['min'] = bans_df[bans_df['ban'] == 1]["sleep_bgn"].min()
-            f_data['banned']['max'] = bans_df[bans_df['ban'] == 1]["sleep_end"].max()
-            f_data['notbanned']['min'] = bans_df[bans_df['ban'] == 0]["sleep_bgn"].min()
-            f_data['notbanned']['max'] = bans_df[bans_df['ban'] == 0]["sleep_end"].max()
+        f_data = self.fit_data[self.name]
+        f_data['banned']['min'] = bans_df[bans_df['ban'] == 1]["sleep_bgn"].min()
+        f_data['banned']['max'] = bans_df[bans_df['ban'] == 1]["sleep_end"].max()
+        f_data['notbanned']['min'] = bans_df[bans_df['ban'] == 0]["sleep_bgn"].min()
+        f_data['notbanned']['max'] = bans_df[bans_df['ban'] == 0]["sleep_end"].max()
 
 
-class TotalNumberOfPostsRule(BasicRule):
-    def __init__(self):
-        super().__init__("total_number_of_posts",
-                         "if total_number_of_posts in to_ban_range -> "
-                         "ban and if total_number_of_posts in not_to_ban_range -> no ban",
-                         [TotalNumberOfPostsFeature()], "ban")
+class NarrativeRatioRule(BasicRule):
+    def __init__(self, narrative: str = None):
+        super().__init__("narrative_ratio",
+                         "If narrative ratio is in the ban range -> ban.\n "
+                         "If narrative ratio is in no ban range -> no ban.",
+                         [NarrativeRatioFeature()], "ban")
+        self.narrative = narrative
 
     def pred(self, schedule: dict, start_time: int = 0, curr_time: int = None):
         # update feature values
         self.feature_values(schedule, start_time, curr_time)
 
         # predict/evaluate ban
+        all_narratives = set()
+        for user, u_schedule in schedule.items():
+            all_narratives.update(pd.DataFrame(u_schedule[self.platform]["script"])["informationID"].unique())
+        narratives = [self.narrative] if self.narrative is not None else list(all_narratives)
+
         for user, u_schedule in schedule.items():
             if "triggered_rules" not in u_schedule[self.platform]:
                 u_schedule[self.platform]["triggered_rules"] = dict()
             u_schedule[self.platform]["triggered_rules"][self.name] = 0
-            n_posts = u_schedule[self.platform]["features"]["total_number_of_posts"]
 
-            if isinstance(self.fit_data['total_number_of_posts'], dict):
-                banned = False
-                not_banned = False
-                ban_unknown = False
+            for narrative in narratives:
+                if narrative in u_schedule[self.platform]["features"][self.features[0].name]:
+                    feature_value = u_schedule[self.platform]["features"][self.features[0].name][narrative]
+                    if isinstance(self.fit_data[self.name], dict):
+                        banned = False
+                        not_banned = False
+                        ban_unknown = False
 
-                if (n_posts > self.fit_data["total_number_of_posts"]['banned']['min'] and
-                        n_posts < self.fit_data["total_number_of_posts"]['banned']['max']):
-                    banned = True
-                elif (n_posts > self.fit_data["total_number_of_posts"]['notbanned']['min'] and
-                      n_posts < self.fit_data["total_number_of_posts"]['notbanned']['max']):
-                    not_banned = True
-                else:
-                    ban_unknown = True
+                        if (feature_value > self.fit_data[self.name]['banned']['min'] and
+                                feature_value < self.fit_data[self.name]['banned']['max']):
+                            banned = True
+                        elif (feature_value > self.fit_data[self.name]['notbanned']['min'] and
+                              feature_value < self.fit_data[self.name]['notbanned']['max']):
+                            not_banned = True
+                        else:
+                            ban_unknown = True
 
-                u_schedule[self.platform]["triggered_rules"][self.name] = 1 if banned else 0 if not_banned else -1
+                        u_schedule[self.platform]["triggered_rules"][self.name] = max(1 if banned else 0
+                        if not_banned else -1, u_schedule[self.platform]["triggered_rules"][self.name])
 
-            else:
-                u_schedule[self.platform]["triggered_rules"][self.name] = 1 if n_posts > self.fit_data[
-                    "total_number_of_posts"] else 0
+                    else:
+                        u_schedule[self.platform]["triggered_rules"][self.name] = \
+                            max(1 if feature_value > self.fit_data[self.features[0].name] else 0,
+                                u_schedule[self.platform]["triggered_rules"][self.name])
 
             if u_schedule[self.platform]["triggered_rules"][self.name] == 1:
                 u_schedule[self.platform]["ban"] = 1
@@ -341,18 +433,25 @@ class TotalNumberOfPostsRule(BasicRule):
                 u_schedule[self.platform]["ban"] = 0
 
     def fit(self, schedule: dict, start_time: int = 0, curr_time: int = None):
-        data = [{"ban": u_data[self.platform]["ban"],
-                 "n_posts": u_data[self.platform]["features"]["total_number_of_posts"]
-                 } for u_id, u_data in schedule.items()]
-        bans_df = pd.DataFrame.from_records(data)
+        data = []
+        for u_id, u_data in schedule.items():
+            data_itm = {"ban": u_data[self.platform]["ban"],
+                        self.features[0].name: 0}
+            u_narrative_ratios = u_data[self.platform]["features"][self.features[0].name]
+            if self.narrative is not None:
+                if self.narrative in u_narrative_ratios:
+                    data_itm[self.features[0].name] = u_narrative_ratios[self.narrative]
+                else:
+                    data_itm[self.features[0].name] = 0
+            else:
+                data_itm[self.features[0].name] = max(list(u_narrative_ratios.values()))
+            data.append(data_itm)
+        self.fit_data[self.name] = {"banned": {"min": None, "max": None}, "notbanned": {"min": None, "max": None}}
 
-        for feature_name in [f.name for f in self.features]:
-            if feature_name not in self.fit_data:
-                self.fit_data[feature_name] = {"total_number_of_posts": {"banned": {"min": None, "max": None},
-                                                                         "notbanned": {"min": None, "max": None}}}
-            f_data = self.fit_data[feature_name]
-            f_data['banned']['min'] = bans_df[bans_df['ban'] == 1]["n_posts"].min()
-            f_data['banned']['max'] = bans_df[bans_df['ban'] == 1]["n_posts"].max()
-            f_data['notbanned']['min'] = bans_df[bans_df['ban'] == 0]["n_posts"].min()
-            f_data['notbanned']['max'] = bans_df[bans_df['ban'] == 0]["n_posts"].max()
+        bans_df = pd.DataFrame.from_records(data)
+        f_data = self.fit_data[self.name]
+        f_data['banned']['min'] = bans_df[bans_df['ban'] == 1][self.features[0].name].min()
+        f_data['banned']['max'] = bans_df[bans_df['ban'] == 1][self.features[0].name].max()
+        f_data['notbanned']['min'] = bans_df[bans_df['ban'] == 0][self.features[0].name].min()
+        f_data['notbanned']['max'] = bans_df[bans_df['ban'] == 0][self.features[0].name].max()
 

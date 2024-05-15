@@ -61,17 +61,28 @@ class TestRules(unittest.TestCase):
         # schedule_before_rescheduling["puppet_0_0"]["reddit"]
 
         sleep_h_rule = SleepHoursRule()
-        sleep_h_rule.fit_data = {"sleep_hours": {"banned": {"min": 0, "max": 6}, "notbanned": {"min": 8, "max": 22}}}
+        sleep_h_rule.fit_data = {sleep_h_rule.features[0].name: {"banned": {"min": 0, "max": 6}, "notbanned": {"min": 8, "max": 22}}}
         sleep_h_rule.pred(schedule_before_rescheduling, 0)
         sleep_h_rule.fit(schedule_before_rescheduling, 0)
 
         sleep_h_rule2 = SleepHoursRule()
-        sleep_h_rule2.fit_data = {"sleep_hours": {"banned": {"min": 0, "max": 6}, "notbanned": {"min": 8, "max": 22}}}
+        sleep_h_rule2.fit_data = {sleep_h_rule2.features[0].name: {"banned": {"min": 0, "max": 6}, "notbanned": {"min": 8, "max": 22}}}
         sleep_h_rule2.pred(schedule_before_rescheduling, 0)
         sleep_h_rule2.fit(schedule_before_rescheduling, 0)
 
-        complex_rule = AggregateRule("Complex Rule", "Two sleep rules", "ban",
-                                     [sleep_h_rule, sleep_h_rule2])
+        narrative_ratio_rule = NarrativeRatioRule(narrative="un")
+        narrative_ratio_rule.fit_data = {narrative_ratio_rule.features[0].name: {"banned": {"min": 0.5, "max": 1.0}, "notbanned": {"min": 0, "max": 0.3}}}
+        narrative_ratio_rule.pred(schedule_before_rescheduling, 0)
+        narrative_ratio_rule.fit(schedule_before_rescheduling, 0)
+
+
+        total_lines_rule = TotalLinesOfPostsRule()
+        total_lines_rule.fit_data = {total_lines_rule.features[0].name: {"banned": {"min": 18, "max": 100}, "notbanned": {"min": 0, "max": 5}}}
+        total_lines_rule.pred(schedule_before_rescheduling, 0)
+        total_lines_rule.fit(schedule_before_rescheduling, 0)
+
+        complex_rule = AggregateRule("Complex Rule", "Two sleep rules, narrative_ratio_rule and total_lines_rule", "ban",
+                                     [sleep_h_rule, sleep_h_rule2, narrative_ratio_rule, total_lines_rule])
 
         dag = complex_rule.get_DAG()
         print(dag)
