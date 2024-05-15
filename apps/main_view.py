@@ -26,7 +26,7 @@ def main_div(app, users, data, login_manager):
                'align-items': 'center', 'justify-content': 'center',
                },
         children=[
-            html.Div(children=[html.H1("DEMO: Multi-site Causal Discovery and Learning")],
+            html.Div(children=[html.H1("CCD Demo: Distributed Collaborative Causal Discovery")],
                      id="header_div",
                      className='12md',
                      style={'width': '100%', 'display': 'flex', 'padding': '10px 10px 20px 20px',
@@ -87,7 +87,7 @@ def main_div(app, users, data, login_manager):
                             )
                         ]
                     ),
-                    html.Div(id="results_display",
+                    html.Div(id="main_view_div",
                              children=[model_div(app, data, hidden=True)]
                              ),
                 ]
@@ -105,13 +105,13 @@ def main_div(app, users, data, login_manager):
         Output('welcome-message', 'children'),
         Output('username', 'value'),
         Output('password', 'value'),
-        Output('results_display', 'children'),
+        Output('main_view_div', 'children'),
         Input('login', 'n_clicks'),
         State('username', 'value'),
         State('password', 'value'),
-        State('results_display', 'children')
+        State('main_view_div', 'children')
     )
-    def login_button_click(n_clicks, username, password, results_display):
+    def login_button_click(n_clicks, username, password, main_view_div):
         active_user = current_user.get_id()
         print(active_user)
         if username in users and users[username] == password:
