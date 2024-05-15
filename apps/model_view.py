@@ -9,7 +9,7 @@ from dash import Dash, Input, Output, html, dcc, callback
 import dash_bootstrap_components as dbc
 
 
-def model_div(app, data, hidden=True):
+def model_div(app, data, username, hidden=True):
     """
     Results section/page div block layout.
     :param app: DASH/Flask webapp object
@@ -17,6 +17,8 @@ def model_div(app, data, hidden=True):
     :param hidden: True/False if block is visible
     :return: div block
     """
+    if username is None:
+        username = "s1"
 
     rules_data_table = [{"Name": rule.name,
                          "Description": rule.rule_str,
@@ -25,11 +27,11 @@ def model_div(app, data, hidden=True):
                          "graph": rule.get_DAG(),
                          "Add": "Add to \npolicy editor"
                          }
-                        for rule in data["rules"]]
+                        for rule in data[username]["rules"]]
 
     rules_df = pd.DataFrame.from_records(rules_data_table)
     for i, r in rules_df.iterrows():
-        fig = get_DAG_fig(data["rules"][i].get_DAG())
+        fig = get_DAG_fig(data[username]["rules"][i].get_DAG())
         rules_df.at[i, "graph"] = fig
 
     # local
@@ -38,7 +40,7 @@ def model_div(app, data, hidden=True):
                          "graph": rule.get_DAG(),
                          "Add": "Add to \npolicy editor"
                          }
-                        for rule in data["local"][0].rules]
+                        for rule in data[username]["rules"]]
 
     local_rules_df = pd.DataFrame.from_records(local_rules_data_table)
     for i, r in local_rules_df.iterrows():
@@ -152,18 +154,18 @@ def model_div(app, data, hidden=True):
     res_div = (html.Div(id="results_div",
                         children=[html.Div(id="local_div",
                                            children=[html.H2("Local causal DAG and rules:"),
-                                                     dcc.Dropdown([r.name for r in data["local"]], 'Local sleep policy', id='local-dropdown'),
+                                                     dcc.Dropdown([r.name for r in data[username]["local"]], 'Local sleep policy', id='local-dropdown'),
                                                      html.Div(id='local-output-container'),
                                                      html.I('Policy name: '),
                                                      dcc.Input(id='local_rule', type='string',
-                                                               value=data["local"][0].name, debounce=True),
+                                                               value=data[username]["local"][0].name, debounce=True),
                                                      html.Br(),
                                                      html.I('Rules: '),
                                                      local_table_div,
                                                      html.Br(),
                                                      html.I('DAG:'),
                                                      dcc.Graph(id='local_dag',
-                                                               figure=get_DAG_fig(data["local"][0].get_DAG())),
+                                                               figure=get_DAG_fig(data[username]["local"][0].get_DAG())),
                                             ],
                                            style={'width': '50%', 'padding': '10px 10px 20px 20px',
                                                   'display': 'none'} if hidden else {'width': '50%',

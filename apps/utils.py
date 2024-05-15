@@ -1,7 +1,7 @@
 import json
 from pathlib import Path
 import pandas as pd
-from data_processing.rules import SleepHoursRule, TotalNumberOfPostsRule, AggregateRule
+from data_processing.rules import *
 
 
 def load_users(users_path: Path):
@@ -29,13 +29,31 @@ def load_data(data_path: Path):
 
     """
     #data = load_json_into_df(data_path, True, False)
-    data = {"rules": [SleepHoursRule(), TotalNumberOfPostsRule()],
-            "local": [AggregateRule("Local sleep policy", "Trigger ban if constituent rule triggered",
-                                    "ban", [SleepHoursRule()])],
-            "shared": [AggregateRule("Shared policy on number of posts", "Trigger ban if constituent rule triggered",
-                                    "ban", [TotalNumberOfPostsRule()])],
-            "editor": AggregateRule("New policy", "Trigger ban if constituent rule triggered",
+    data = {"s1": {"rules": [SleepHoursRule(), TotalNumberOfPostsRule(), NarrativeRatioRule(narrative="un"), TotalLinesOfPostsRule()],
+                   "local": [AggregateRule("S1: Local sleep policy", "Trigger ban if constituent rule triggered",
+                                    "ban", [SleepHoursRule()]),
+                             AggregateRule("S1: Local sleep and total number of posts policy", "Trigger ban if constituent rule triggered",
+                                           "ban", [SleepHoursRule(), TotalNumberOfPostsRule()])
+                             ],
+                   "editor": AggregateRule("New policy", "Trigger ban if constituent rule triggered",
                                     "ban", [SleepHoursRule()])
+                   },
+            "s2": {"rules": [SleepHoursRule(), TotalNumberOfPostsRule(), NarrativeRatioRule(), TotalLinesOfPostsRule()],
+                   "local": [AggregateRule("S2: Local sleep policy", "Trigger ban if constituent rule triggered",
+                                           "ban", [SleepHoursRule()])],
+                   "editor": AggregateRule("New policy", "Trigger ban if constituent rule triggered",
+                                           "ban", [SleepHoursRule()])
+                   },
+            "s3": {"rules": [SleepHoursRule(), TotalNumberOfPostsRule(), NarrativeRatioRule(), TotalLinesOfPostsRule()],
+                   "local": [AggregateRule("S3: Local sleep policy", "Trigger ban if constituent rule triggered",
+                                           "ban", [SleepHoursRule()])],
+                   "editor": AggregateRule("New policy", "Trigger ban if constituent rule triggered",
+                                           "ban", [SleepHoursRule()])
+                   },
+            "shared": [AggregateRule("Shared policy on number of posts", "Trigger ban if constituent rule triggered",
+                                     "ban",
+                                     [SleepHoursRule(), TotalNumberOfPostsRule(),
+                                      NarrativeRatioRule(narrative="un"), TotalLinesOfPostsRule()])],
             }
     return data
 

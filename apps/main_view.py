@@ -88,7 +88,7 @@ def main_div(app, users, data, login_manager):
                         ]
                     ),
                     html.Div(id="main_view_div",
-                             children=[model_div(app, data, hidden=True)]
+                             children=[model_div(app, data, None, hidden=True)]
                              ),
                 ]
             ),
@@ -117,12 +117,12 @@ def main_div(app, users, data, login_manager):
         if username in users and users[username] == password:
             user = User(username)
             login_user(user)
-            return ([html.H4(f"Welcome, {username}!")], "", "", [model_div(app, data, hidden=False)])
+            return ([html.H4(f"Welcome, {username}!")], "", "", [model_div(app, data, username, hidden=False)])
         elif n_clicks > 0:
-            return ([html.H4("Login failed")], "", "", [model_div(app, data, hidden=True)])
+            return ([html.H4("Login failed")], "", "", [model_div(app, data, username, hidden=True)])
         elif active_user:
-            return ([html.H4(f"Welcome, {active_user}!")], "", "", [model_div(app, data, hidden=True)])
+            return ([html.H4(f"Welcome, {active_user}!")], "", "", [model_div(app, data, username, hidden=True)])
         else:
-            return ([html.H4("Welcome, guest! Log in to edit.")], "", "", [model_div(app, data, hidden=True)])
+            return ([html.H4("Welcome, guest! Log in to edit.")], "", "", [model_div(app, data, username, hidden=True)])
 
     return m_div
