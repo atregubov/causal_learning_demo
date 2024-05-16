@@ -1,7 +1,7 @@
 import json
 from pathlib import Path
 import pandas as pd
-from data_processing.rules import *
+from model.rules import *
 
 
 def load_users(users_path: Path):
