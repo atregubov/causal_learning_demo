@@ -29,7 +29,7 @@ def load_data(data_path: Path):
 
     """
     #data = load_json_into_df(data_path, True, False)
-    data = {"s1": {"rules": [SleepHoursRule(), TotalNumberOfPostsRule(), NarrativeRatioRule(narrative="un"), TotalLinesOfPostsRule()],
+    data = {"s1": {"rules": [r for r in RULES.values()],
                    "local": [AggregateRule("S1: Local sleep policy", "Trigger ban if constituent rule triggered",
                                     "ban", [SleepHoursRule()]),
                              AggregateRule("S1: Local sleep and total number of posts policy", "Trigger ban if constituent rule triggered",
@@ -52,8 +52,13 @@ def load_data(data_path: Path):
                    },
             "shared": [AggregateRule("Shared policy on number of posts", "Trigger ban if constituent rule triggered",
                                      "ban",
-                                     [SleepHoursRule(), TotalNumberOfPostsRule(),
-                                      NarrativeRatioRule(narrative="un"), TotalLinesOfPostsRule()])],
+                                     [SleepHoursRule(),
+                                      TotalNumberOfPostsRule(),
+                                      NarrativeRatioRule(narrative="un"),
+                                      TotalLinesOfPostsRule(),
+                                      TotalNumberOfPostsCauseSleepHoursRule(),
+                                      TotalNumberOfLinesCauseSleepHoursRule()],
+                                     )],
             }
     return data
 

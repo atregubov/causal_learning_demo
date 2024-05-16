@@ -99,8 +99,8 @@ class Rule(ABC):
                                         [[list_of_actions] | 1_0_-1_ban | rule_name         | feature_name ]
     """
 
-    def __init__(self, name: str, rule_str: str, outcome_name: str, rules: list, depends_on: list = [],
-                 features: list = [], platform: str ="reddit"):
+    def __init__(self, name: str, rule_str: str, outcome_name: str, rules: list, depends_on: list,
+                 features: list, platform: str ="reddit"):
         self.name = name
         self.platform = platform
         self.rule_str = rule_str
@@ -121,17 +121,12 @@ class Rule(ABC):
     def __repr__(self):
         return f"Rule: {self.rule_str}"
 
+    @abstractmethod
     def get_DAG(self) -> nx.MultiDiGraph:
         """
-        Creates an NX graph with features nodes pointing at the ban node.
+        Creates an NX graph.
         """
-        G = nx.MultiDiGraph()
-        for rule in self.rules:
-            rule_G = rule.get_DAG()
-            G.add_nodes_from(list(rule_G.nodes))
-            G.add_edges_from(list(rule_G.edges))
-
-        return G
+        return None
 
     @abstractmethod
     def pred(self, schedule: dict, start_time: int = 0, curr_time: int = None):
@@ -246,8 +241,12 @@ class BasicRule(Rule):
 
 class AbstractOneFeatureThresholdRule(BasicRule):
     def pred(self, schedule: dict, start_time: int = 0, curr_time: int = None):
+        if self.fit_data[self.name] is None:
+            raise AttributeError("fit_data is None. Run fit() first or set fit_data attribute.")
+
         # update feature values
         self.feature_values(schedule, start_time, curr_time)
+
 
         # predict/evaluate ban
         for user, u_schedule in schedule.items():
@@ -321,6 +320,9 @@ class SleepHoursRule(BasicRule):
                          [SleepHoursFeature()], "ban")
 
     def pred(self, schedule: dict, start_time: int = 0, curr_time: int = None):
+        if self.fit_data[self.name] is None:
+            raise AttributeError("fit_data is None. Run fit() first or set fit_data attribute.")
+
         # update feature values
         self.feature_values(schedule, start_time, curr_time)
 
@@ -388,6 +390,9 @@ class NarrativeRatioRule(BasicRule):
         self.narrative = narrative
 
     def pred(self, schedule: dict, start_time: int = 0, curr_time: int = None):
+        if self.fit_data[self.name] is None:
+            raise AttributeError("fit_data is None. Run fit() first or set fit_data attribute.")
+
         # update feature values
         self.feature_values(schedule, start_time, curr_time)
 
@@ -454,4 +459,61 @@ class NarrativeRatioRule(BasicRule):
         f_data['banned']['max'] = bans_df[bans_df['ban'] == 1][self.features[0].name].max()
         f_data['notbanned']['min'] = bans_df[bans_df['ban'] == 0][self.features[0].name].min()
         f_data['notbanned']['max'] = bans_df[bans_df['ban'] == 0][self.features[0].name].max()
+
+
+class FeaturesRelationshipRule(Rule):
+    """
+    This class describes relationships between Features. Features can be computed directly from schedules, but still
+    can have causal relationships among themselves. In such cases to add this relationship to DAG use this class
+    FeaturesRelationshipRule.
+    """
+    def __init__(self, name: str, rule_str: str, features: list, outcome_feature: Feature):
+        super().__init__(name, rule_str, outcome_feature.name, [],[], features)
+        self.outcome_feature = outcome_feature
+
+    def pred(self, schedule: dict, start_time: int = 0, curr_time: int = None):
+        for feature in [self.features[0], self.outcome_feature]:
+            feature.value(schedule, start_time, curr_time)
+
+    def fit(self, schedule: dict, start_time: int = 0, curr_time: int = None):
+        return None
+
+    def get_DAG(self) -> nx.MultiDiGraph:
+        """
+        Creates an NX graph.
+        """
+        G = nx.MultiDiGraph()
+        feature_names = [f.name for f in self.features]
+        G.add_nodes_from(feature_names)
+        G.add_nodes_from([self.outcome_name])
+        G.add_edges_from([(f, self.outcome_name) for f in feature_names])
+
+        return G
+
+
+class TotalNumberOfPostsCauseSleepHoursRule(FeaturesRelationshipRule):
+    def __init__(self):
+        super().__init__("total_number_of_posts_cause_sleep_hours",
+                         "The total number of posts affects sleep hours of a user.",
+                         [TotalNumberOfPostsFeature()], SleepHoursFeature())
+
+
+class TotalNumberOfLinesCauseSleepHoursRule(FeaturesRelationshipRule):
+    def __init__(self):
+        super().__init__("total_number_of_lines_cause_sleep_hours",
+                         "The total number of lines in posts affects sleep hours of a user.",
+                         [TotalLinesFeature()], SleepHoursFeature())
+
+
+RULES = {r.name: r for r in [SleepHoursRule(),
+                             TotalNumberOfPostsRule(),
+                             NarrativeRatioRule(narrative="un"),
+                             TotalLinesOfPostsRule(),
+                             TotalNumberOfPostsCauseSleepHoursRule(),
+                             TotalNumberOfLinesCauseSleepHoursRule()]}
+
+FEATURES = {f.name: f for f in [SleepHoursFeature(),
+                                TotalNumberOfPostsRule(),
+                                TotalLinesFeature(),
+                                NarrativeRatioFeature()]}
 

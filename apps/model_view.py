@@ -109,7 +109,7 @@ def model_div(app, data, username, hidden=True):
     ]
     table_div = html.Div(
         [
-            dcc.Markdown("Causal Rules"),
+            dcc.Markdown("Causal Rules", style={'display': 'none'} if hidden else {'display': 'inline-block'}),
             dag.AgGrid(
                 id="custom-component-graph-grid",
                 rowData=rules_df.to_dict("records"),
@@ -199,12 +199,53 @@ def model_div(app, data, username, hidden=True):
     return res_div
 
 
+def hierarchy_pos(G, root, width=1., vert_gap = 0.2, vert_loc = 0, xcenter = 0.5 ):
+    '''If there is a cycle that is reachable from root, then result will not be a hierarchy.
+
+       G: the graph
+       root: the root node of current branch
+       width: horizontal space allocated for this branch - avoids overlap with other branches
+       vert_gap: gap between levels of hierarchy
+       vert_loc: vertical location of root
+       xcenter: horizontal location of root
+    '''
+
+    def reverse_edges(G):
+        original_edges = list(G.edges())
+        for a, b in original_edges:
+            G.remove_edge(a, b)
+            G.add_edge(b, a)
+    def h_recur(G, root, width=1., vert_gap = 0.2, vert_loc = 0.0, xcenter = 0.5,
+                  pos = None, parent = None, parsed = [] ):
+        if(root not in parsed):
+            parsed.append(root)
+            if pos == None:
+                pos = {root:(xcenter,vert_loc)}
+            else:
+                pos[root] = (xcenter, vert_loc)
+            neighbors = list(G.neighbors(root))
+            if parent != None and parent in neighbors:
+                neighbors.remove(parent)
+            if len(neighbors) != 0:
+                dx = width/len(neighbors)
+                nextx = xcenter - width/2 - dx/2
+                for neighbor in neighbors:
+                    nextx += dx
+                    pos = h_recur(G, neighbor, width = dx, vert_gap = vert_gap,
+                                        vert_loc = vert_loc-vert_gap, xcenter=nextx, pos=pos,
+                                        parent = root, parsed = parsed)
+        return pos
+
+    reverse_edges(G)
+    pos = h_recur(G, root, width=1., vert_gap = 0.2, vert_loc = 0, xcenter = 0.5)
+    reverse_edges(G)
+    return pos
+
+
 def get_DAG_fig(G):
-    # edgelist = [("sleep_hours", "ban"), ("total_number_of_posts", "sleep_hours")]
-    # if n_nodes == 2:
-    #     edgelist = [("total_number_of_posts", "ban")]
-    # G = nx.DiGraph(edgelist)  # use Graph constructor
     lay = nx.layout.circular_layout(G)
+    if len(list(G.nodes)) > 2 and "ban" in G.nodes:
+        lay = hierarchy_pos(G, "ban")
     position = {node: lay[node] for node in G.nodes}
 
     edge_x = []
