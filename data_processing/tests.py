@@ -82,7 +82,7 @@ class TestRules(unittest.TestCase):
         total_lines_rule.fit(schedule_before_rescheduling, 0)
 
         complex_rule = AggregateRule("Complex Rule", "Two sleep rules, narrative_ratio_rule and total_lines_rule", "ban",
-                                     [sleep_h_rule, sleep_h_rule2, narrative_ratio_rule, total_lines_rule])
+                                     [sleep_h_rule, sleep_h_rule2, narrative_ratio_rule, total_lines_rule, TotalNumberOfPostsCauseSleepHoursRule()])
 
         dag = complex_rule.get_DAG()
         print(dag)

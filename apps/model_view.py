@@ -4,7 +4,7 @@ import plotly.graph_objects as go
 import networkx as nx
 import pandas as pd
 import dash_ag_grid as dag
-from dash import Dash, Input, Output, html, dcc, callback
+from dash import Dash, Input, Output, html, dcc, callback, State
 
 import dash_bootstrap_components as dbc
 
@@ -19,63 +19,94 @@ def model_div(app, data, username, hidden=True):
     """
     if username is None:
         username = "s1"
-
+    ####################################################################################################################
+    # Prepare data table from data object
+    ####################################################################################################################
+    # all rules table
     rules_data_table = [{"Name": rule.name,
                          "Description": rule.rule_str,
                          "Local": rule.local,
                          "Shared": not(rule.local),
                          "graph": rule.get_DAG(),
-                         "Add": "Add to \npolicy editor"
+                         "Add to editor": "Add to \npolicy editor"
                          }
                         for rule in data[username]["rules"]]
-
     rules_df = pd.DataFrame.from_records(rules_data_table)
     for i, r in rules_df.iterrows():
         fig = get_DAG_fig(data[username]["rules"][i].get_DAG())
         rules_df.at[i, "graph"] = fig
 
-    # local
+    # local policy view table
     local_rules_data_table = [{"Name": rule.name,
                          "Description": rule.rule_str,
                          "graph": rule.get_DAG(),
-                         "Add": "Add to \npolicy editor"
+                         "Add to editor": "Add to \npolicy editor"
                          }
                         for rule in data[username]["rules"]]
-
     local_rules_df = pd.DataFrame.from_records(local_rules_data_table)
     for i, r in local_rules_df.iterrows():
         fig = get_DAG_fig(r["graph"])
         local_rules_df.at[i, "graph"] = fig
 
-    # shared
+    # shared policy view table
     shared_rules_data_table = [{"Name": rule.name,
-                         "Description": rule.rule_str,
-                         "graph": rule.get_DAG(),
-                         "Add": "Add to \npolicy editor"
-                         }
-                        for rule in data["shared"][0].rules]
-
+                                "Description": rule.rule_str,
+                                "graph": rule.get_DAG(),
+                                "Add to editor": "Add to \npolicy editor"
+                                }
+                               for rule in data["shared"][0].rules]
     shared_rules_df = pd.DataFrame.from_records(shared_rules_data_table)
     for i, r in shared_rules_df.iterrows():
         fig = get_DAG_fig(r["graph"])
         shared_rules_df.at[i, "graph"] = fig
 
+    # policy editor panel
+    editor_rules_data_table = [{"Name": rule.name,
+                                "Description": rule.rule_str,
+                                "Thresholds (fit data)": ["Local fit data"],
+                                "graph": rule.get_DAG(),
+                                "Remove": "Remove",
+                                }
+                               for rule in data[username]["editor"].rules]
+    editor_rules_df = pd.DataFrame.from_records(editor_rules_data_table)
+    for i, r in editor_rules_df.iterrows():
+        fig = get_DAG_fig(r["graph"])
+        editor_rules_df.at[i, "graph"] = fig
 
+    ####################################################################################################################
+    # Prepare table formating for panels
+    ####################################################################################################################
+    # all rules table
     rules_table_columns = [
         {
             "field": "Name",
+            "resizable": True,
+            "cellStyle": {"wordBreak": "normal"},
+            "wrapText": True,
+            "autoHeight": True,
         },
         {
             "field": "Description",
             "headerName": "Description",
+            "resizable": True,
+            "cellStyle": {"wordBreak": "normal"},
+            "wrapText": True,
+            "autoHeight": True,
+            "minWidth": 200,
+            "maxWidth": 600,
         },
         {
             "field": "Local",
             "headerName": "Local",
+            "maxWidth": 100,
+            "minWidth": 70,
+
         },
         {
             "field": "Shared",
             "headerName": "Shared",
+            "maxWidth": 100,
+            "minWidth": 70,
         },
         {
             "field": "graph",
@@ -85,19 +116,31 @@ def model_div(app, data, username, hidden=True):
             "minWidth": 500,
         },
         {
-            "field": "Add",
+            "field": "Add to editor",
             "cellRenderer": "DBC_Button_Simple",
             "cellRendererParams": {"color": "success"},
+            "minWidth": 200,
+            "maxWidth": 250,
+
         },
     ]
 
+    # shared and local policy view table uses short_set_columns
     short_set_columns = [
         {
             "field": "Name",
+            "resizable": True,
+            "cellStyle": {"wordBreak": "normal"},
+            "wrapText": True,
+            "autoHeight": True,
         },
         {
             "field": "Description",
             "headerName": "Description",
+            "resizable": True,
+            "cellStyle": {"wordBreak": "normal"},
+            "wrapText": True,
+            "autoHeight": True,
         },
         {
             "field": "graph",
@@ -107,21 +150,66 @@ def model_div(app, data, username, hidden=True):
             "minWidth": 500,
         }
     ]
-    table_div = html.Div(
+
+    # editor panel table with rules
+    editor_columns = [
+        {
+            "field": "Name",
+            "resizable": True,
+            "cellStyle": {"wordBreak": "normal"},
+            "wrapText": True,
+            "autoHeight": True,
+        },
+        {
+            "field": "Description",
+            "headerName": "Description",
+            "resizable": True,
+            "cellStyle": {"wordBreak": "normal"},
+            "wrapText": True,
+            "autoHeight": True,
+        },
+        {
+             "field": "Thresholds (fit data)",
+             "headerName": "Thresholds (fit data)",
+             "resizable": True,
+             "cellStyle": {"wordBreak": "normal"},
+             "wrapText": True,
+             "autoHeight": True,
+         },
+        {
+            "field": "graph",
+            "cellRenderer": "DCC_GraphClickData",
+            "headerName": "DAG",
+            "maxWidth": 900,
+            "minWidth": 500,
+        },
+        {
+            "field": "Remove",
+            "cellRenderer": "DBC_Button_Simple",
+            "cellRendererParams": {"color": "success"},
+            "minWidth": 100,
+            "maxWidth": 200,
+
+        },
+    ]
+
+    ####################################################################################################################
+    # Prepare div blocks for panels
+    ####################################################################################################################
+    rules_table_div = html.Div(
         [
-            dcc.Markdown("Causal Rules", style={'display': 'none'} if hidden else {'display': 'inline-block'}),
             dag.AgGrid(
-                id="custom-component-graph-grid",
+                id="rules_table_div_id",
                 rowData=rules_df.to_dict("records"),
                 columnSize="sizeToFit",
                 columnDefs=rules_table_columns,
                 defaultColDef={"filter": True, "minWidth": 60},
                 dashGridOptions={"rowHeight": 200, "animateRows": False},
-                style={"height": 600, 'display': 'none'} if hidden else {"height": 600, 'display': 'inline-block'}
+                style={"height": 800, 'display': 'inline-block'},
+
             ),
         ]
     )
-
     local_table_div = html.Div(
         [
             dag.AgGrid(
@@ -131,11 +219,10 @@ def model_div(app, data, username, hidden=True):
                 columnDefs=short_set_columns,
                 defaultColDef={"filter": True, "minWidth": 60},
                 dashGridOptions={"rowHeight": 150, "animateRows": False},
-                style={"height": 400, 'display': 'none'} if hidden else {"height": 400, 'display': 'inline-block'}
+                style={"height": 400, 'display': 'inline-block'}
             ),
         ]
     )
-
     shared_table_div = html.Div(
         [
             dag.AgGrid(
@@ -145,17 +232,30 @@ def model_div(app, data, username, hidden=True):
                 columnDefs=short_set_columns,
                 defaultColDef={"filter": True, "minWidth": 60},
                 dashGridOptions={"rowHeight": 150, "animateRows": False},
-                style={"height": 400, 'display': 'none'} if hidden else {"height": 400, 'display': 'inline-block'}
+                style={"height": 400, 'display': 'inline-block'}
             ),
         ]
     )
-
-
-    res_div = (html.Div(id="results_div",
-                        children=[html.Div(id="local_div",
-                                           children=[html.H2("Local causal DAG and rules:"),
-                                                     dcc.Dropdown([r.name for r in data[username]["local"]], 'Local sleep policy', id='local-dropdown'),
-                                                     html.Div(id='local-output-container'),
+    editor_table_div = html.Div(
+        [
+            dag.AgGrid(
+                id="editor_table_div",
+                rowData=editor_rules_df.to_dict("records"),
+                columnSize="sizeToFit",
+                columnDefs=editor_columns,
+                defaultColDef={"filter": True, "minWidth": 60},
+                dashGridOptions={"rowHeight": 150, "animateRows": False},
+                style={"height": 800, 'display': 'inline-block'}
+            ),
+        ]
+    )
+    # div with all panels together
+    panels_div = (html.Div(id="panels_div",
+                           style={'display': 'none'} if hidden else {'display': 'block'},
+                           children=[html.Div(id="local_div",
+                                           children=[html.H2("Local causal DAG and rules"),
+                                                     dcc.Dropdown([r.name for r in data[username]["local"]],
+                                                                  data[username]["local"][0].name, id='local-dropdown'),
                                                      html.I('Policy name: '),
                                                      dcc.Input(id='local_rule', type='string',
                                                                value=data[username]["local"][0].name, debounce=True),
@@ -167,15 +267,12 @@ def model_div(app, data, username, hidden=True):
                                                      dcc.Graph(id='local_dag',
                                                                figure=get_DAG_fig(data[username]["local"][0].get_DAG())),
                                             ],
-                                           style={'width': '50%', 'padding': '10px 10px 20px 20px',
-                                                  'display': 'none'} if hidden else {'width': '50%',
-                                                                                     'padding': '10px 10px 20px 20px', 'display': 'inline-block'}
+                                           style={'width': '50%', 'padding': '10px 10px 20px 20px', 'display': 'inline-block'}
                                            ),
                                   html.Div(id="shared_div",
-                                           children=[html.H2("Shared causal DAG and rules:"),
-                                                     dcc.Dropdown([r.name for r in data["shared"]], 'Shared policy on number of posts',
-                                                                  id='shared-dropdown'),
-                                                     html.Div(id='dd-output-container_shared'),
+                                           children=[html.H2("Shared causal DAG and rules"),
+                                                     dcc.Dropdown([r.name for r in data["shared"]],
+                                                                  data["shared"][0].name, id='shared-dropdown'),
                                                      html.I('Policy name: '),
                                                      dcc.Input(id='shared_rule', type='string',
                                                                value=data["shared"][0].name, debounce=True),
@@ -188,18 +285,57 @@ def model_div(app, data, username, hidden=True):
                                                                figure=get_DAG_fig(data["shared"][0].get_DAG())),
                                                      ],
                                            style={'width': '50%', 'padding': '10px 10px 20px 20px',
-                                                  'display': 'none'} if hidden else {'width': '50%',
-                                                                                     'padding': '10px 10px 20px 20px', 'display': 'inline-block'}
+                                                  'display': 'inline-block'}
                                            ),
-                                  table_div,
+                                  html.Div(id="all_rules_div",
+                                          children=[html.H2("Rules"),
+                                                    html.Br(),
+                                                    rules_table_div,
+                                                    ],
+                                          style={'width': '100%', 'padding': '10px 10px 20px 20px',
+                                                 'display': 'inline-block'}
+                                          ),
+                                  html.Div(id="editor_div",
+                                           children=[html.H2("Policy editor"),
+                                                     html.Div([
+                                                         html.I('Policy name: '),
+                                                         dcc.Input(id='editor_policy_name', type='string',
+                                                                   value=data[username]["editor"].name, debounce=True),
+                                                         html.Br(),
+                                                         html.Button('Save', id='save_btn', n_clicks=0, style={'padding': '10px 10px 10px 10px'}),
+                                                         html.Button('Fit', id='fit_btn', n_clicks=0, style={'padding': '10px 10px 10px 10px'}),
+                                                         html.Button('Share', id='share_btn', n_clicks=0, style={'padding': '10px 10px 10px 10px'}),
+                                                         html.Button('Evaluate', id='evaluate_btn', n_clicks=0, style={'padding': '10px 10px 10px 10px'}),
+                                                         html.Div(id='editor_notification', children='Saved.')
+                                                     ]),
+                                                     html.Br(),
+                                                     html.I('Rules: '),
+                                                     editor_table_div,
+                                                     html.Br(),
+                                                     html.I('DAG:'),
+                                                     dcc.Graph(id='editor_dag',
+                                                               figure=get_DAG_fig(data[username]["editor"].get_DAG())),
+                                                     ],
+                                           style={'width': '100%', 'padding': '10px 10px 20px 20px',
+                                                  'display': 'inline-block'}
+                                           ),
                                   ],
                        )
                )
 
-    return res_div
+    @app.callback(
+        Output('editor_notification', 'children'),
+        Input('save_btn', 'n_clicks'),
+        State('editor_policy_name', 'value'),
+        prevent_initial_call=True
+    )
+    def update_output(n_clicks, value):
+        return f"Policy \"{value}\" saved."
+
+    return panels_div
 
 
-def hierarchy_pos(G, root, width=1., vert_gap = 0.2, vert_loc = 0, xcenter = 0.5 ):
+def hierarchy_pos(G, root, width=1., vert_gap = 0.2, vert_loc = 0, xcenter = 0.5):
     '''If there is a cycle that is reachable from root, then result will not be a hierarchy.
 
        G: the graph

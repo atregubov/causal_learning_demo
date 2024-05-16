@@ -35,8 +35,15 @@ def load_data(data_path: Path):
                              AggregateRule("S1: Local sleep and total number of posts policy", "Trigger ban if constituent rule triggered",
                                            "ban", [SleepHoursRule(), TotalNumberOfPostsRule()])
                              ],
-                   "editor": AggregateRule("New policy", "Trigger ban if constituent rule triggered",
-                                    "ban", [SleepHoursRule()])
+                   "editor": AggregateRule("Shared policy on number of posts", "Trigger ban if constituent rule triggered",
+                                     "ban",
+                                     [SleepHoursRule(),
+                                      TotalNumberOfPostsRule(),
+                                      NarrativeRatioRule(narrative="un"),
+                                      TotalLinesOfPostsRule(),
+                                      TotalNumberOfPostsCauseSleepHoursRule(),
+                                      TotalNumberOfLinesCauseSleepHoursRule()],
+                                     )
                    },
             "s2": {"rules": [SleepHoursRule(), TotalNumberOfPostsRule(), NarrativeRatioRule(), TotalLinesOfPostsRule()],
                    "local": [AggregateRule("S2: Local sleep policy", "Trigger ban if constituent rule triggered",
