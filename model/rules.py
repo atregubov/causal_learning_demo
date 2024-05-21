@@ -50,6 +50,22 @@ class TotalNumberOfPostsFeature(Feature):
         return len(actions_script)
 
 
+class NarrativeNumberOfPostsFeature(Feature):
+    """
+    Feature total_number_of_posts, defined for each user.
+    """
+    def __init__(self, narrative, platform: str = "reddit"):
+        super().__init__("narrative_number_of_posts", platform)
+        self.narrative = narrative
+
+    def _value_from_actions(self, actions_script: list, start_time: int = 0, curr_time: int = None):
+        n_posts = 0
+        for action in actions_script:
+            if action["informationID"] == self.narrative:
+                n_posts += 1
+        return n_posts
+
+
 class TotalLinesFeature(Feature):
     """
     Feature total_number_of_posts, defined for each user.
@@ -60,6 +76,22 @@ class TotalLinesFeature(Feature):
     def _value_from_actions(self, actions_script: list, start_time: int = 0, curr_time: int = None):
         total_lines = sum([v['n_lines'] for v in actions_script])
         return total_lines
+
+
+class NarrativeLinesFeature(Feature):
+    """
+    Feature total_number_of_posts, defined for each user.
+    """
+    def __init__(self, narrative, platform: str = "reddit"):
+        super().__init__("narrative_lines_of_posts", platform)
+        self.narrative = narrative
+
+    def _value_from_actions(self, actions_script: list, start_time: int = 0, curr_time: int = None):
+        n_lines = 0
+        for action in actions_script:
+            if action["informationID"] == self.narrative:
+                n_lines += action["n_lines"]
+        return n_lines
 
 
 class SleepHoursFeature(Feature):
@@ -303,6 +335,15 @@ class TotalNumberOfPostsRule(AbstractOneFeatureThresholdRule):
                          [TotalNumberOfPostsFeature()], "ban")
 
 
+class NarrativeNumberOfPostsRule(AbstractOneFeatureThresholdRule):
+    def __init__(self, narrative):
+        super().__init__("narrative_number_of_posts",
+                         "If the number of all posts with narrative <n> \nis in the \"to_ban\" range -> ban.\n"
+                         "Also If the number of all posts with narrative <n> \nis in the \"no_to_ban\" range -> no ban.\n"
+                         "Otherwise no ban.",
+                         [NarrativeNumberOfPostsFeature(narrative)], "ban")
+
+
 class TotalLinesOfPostsRule(AbstractOneFeatureThresholdRule):
     def __init__(self):
         super().__init__("total_lines_of_posts",
@@ -310,6 +351,17 @@ class TotalLinesOfPostsRule(AbstractOneFeatureThresholdRule):
                          "Also If the total number of lines \nin all user posts is in the \"no_ban\" range -> no ban.\n"
                          "Otherwise no ban.",
                          [TotalLinesFeature()], "ban")
+
+
+class NarrativeLinesOfPostsRule(AbstractOneFeatureThresholdRule):
+    def __init__(self, narrative):
+        super().__init__("narrative_lines_of_posts",
+                         "If the number of lines with narrative <n> \nin all user posts is in the "
+                         "\"to_ban\" range -> ban.\n"
+                         "Also If the number of lines with narrative <n> \nin all user posts is in the "
+                         "\"no_ban\" range -> no ban.\n"
+                         "Otherwise no ban.",
+                         [NarrativeLinesFeature(narrative)], "ban")
 
 
 class SleepHoursRule(BasicRule):
@@ -509,11 +561,15 @@ RULES = {r.name: r for r in [SleepHoursRule(),
                              TotalNumberOfPostsRule(),
                              NarrativeRatioRule(narrative="un"),
                              TotalLinesOfPostsRule(),
+                             NarrativeNumberOfPostsRule(narrative="un"),
+                             NarrativeLinesOfPostsRule(narrative="un"),
                              TotalNumberOfPostsCauseSleepHoursRule(),
                              TotalNumberOfLinesCauseSleepHoursRule()]}
 
 FEATURES = {f.name: f for f in [SleepHoursFeature(),
                                 TotalNumberOfPostsRule(),
                                 TotalLinesFeature(),
-                                NarrativeRatioFeature()]}
+                                NarrativeRatioFeature(),
+                                NarrativeNumberOfPostsFeature(narrative="un"),
+                                NarrativeNumberOfPostsFeature(narrative="un")]}
 

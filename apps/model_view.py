@@ -17,7 +17,7 @@ def model_div(app, data, username, hidden=True):
     :param hidden: True/False if block is visible
     :return: div block
     """
-    if username is None:
+    if username is None or username not in data:
         username = "s1"
     ####################################################################################################################
     # Prepare data table from data object
@@ -437,6 +437,7 @@ def get_DAG_fig(G):
                         showlegend=False,
                         hovermode='closest',
                         margin=dict(b=1, l=1, r=1, t=1),
+                        font=dict(size=18),
                         xaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
                         yaxis=dict(showgrid=False, zeroline=False, showticklabels=False))
                     )
