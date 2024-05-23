@@ -51,7 +51,7 @@ def sample_schedules_with_given_dist(start_time, n_actions, site_index, narrativ
     return actions
 
 
-def generate_script(n_agents, n_actions, n_sites, start_time, activity_dist, narrative_dist,
+def generate_script(n_agents, n_actions, site_idx, start_time, activity_dist, narrative_dist,
                     n_lines_per_post={0: [1, 3],
                                       1: [1, 3],
                                       2: [1, 3]}):
@@ -67,21 +67,58 @@ def generate_script(n_agents, n_actions, n_sites, start_time, activity_dist, nar
     :return: list of actions (schedule) for each agent.
     """
     users = dict()
-    for site_index in range(n_sites):
-        for agent_index in range(n_agents):
-            user_id = f'puppet_{site_index}_{agent_index}'
-            users[user_id] = {"reddit": {'last_event_time': 0, 'role': 'puppet'}}
-            users[user_id]['id'] = user_id
-            users[user_id]['operator_id'] = f'operator_{site_index}'
-            users[user_id]['log'] = []
-            users[user_id]['training'] = []
-            users[user_id]['site'] = site_index
-            users[user_id]['reddit']['script'] = sample_schedules_with_given_dist(start_time,
-                                                                                  random.randint(
-                                                                                      n_actions[site_index][0],
-                                                                                      n_actions[site_index][1]),
-                                                                                  site_index,
-                                                                                  narrative_dist[site_index],
-                                                                                  activity_dist[site_index],
-                                                                                  n_lines_per_post)
+    for agent_index in range(n_agents):
+        user_id = f'puppet_{site_idx}_{agent_index}'
+        users[user_id] = {"reddit": {'last_event_time': 0, 'role': 'puppet'}}
+        users[user_id]['id'] = user_id
+        users[user_id]['operator_id'] = f'operator_{site_idx}'
+        users[user_id]['log'] = []
+        users[user_id]['training'] = []
+        users[user_id]['site'] = site_idx
+        users[user_id]['reddit']['script'] = sample_schedules_with_given_dist(start_time,
+                                                                              random.randint(
+                                                                                  n_actions[site_idx][0],
+                                                                                  n_actions[site_idx][1]),
+                                                                              site_idx,
+                                                                              narrative_dist[site_idx],
+                                                                              activity_dist[site_idx],
+                                                                              n_lines_per_post)
     return users
+
+
+def generate_site_schedule(site_idx, n_agents=100, start_time=0):
+    # keep ranges of the thresholds for each site
+    activity_dist = {0: [0, 0, 0, 0, 0, 1, 10, 5, 10, 9, 1, 1, 10, 10, 10, 10, 5, 4, 4, 4, 10, 6, 1, 1],
+                     1: [0, 0, 0, 1, 1, 1, 1, 5, 1, 9, 1, 1, 10, 10, 1, 1, 5, 4, 4, 4, 1, 6, 1, 1],
+                     2: [0, 0, 0, 0, 0, 1, 1, 5, 1, 9, 1, 1, 10, 10, 1, 1, 5, 4, 4, 4, 1, 6, 1, 1],
+                     }  # site-0 # site-1 # site-2
+    narrative_dist = {0: {'un': 60, 'travel': 20, 'mistreatment': 15, 'prejudice': 5},
+                      1: {'un': 40, 'anti': 20, 'travel': 10, 'pro': 15, 'infrastructure': 15},
+                      2: {'environmentalism': 20, 'covid': 20, 'debt': 20, 'pro': 25, 'un': 10}
+                      }  # %
+    number_of_actions_per_agent = {0: [2, 25],
+                                   1: [3, 25],
+                                   2: [3, 25]
+                                   }
+    number_of_lines_per_post = {0: [1, 3],
+                                1: [1, 4],
+                                2: [1, 2]
+                                }
+    # Initial schedule
+    schedule = generate_script(n_agents, number_of_actions_per_agent, site_idx, start_time,
+                               activity_dist=activity_dist,
+                               narrative_dist=narrative_dist,
+                               n_lines_per_post=number_of_lines_per_post)
+    return schedule
+
+
+def get_random_thresholds(narrative):
+    return {'sleep_hours': random.randint(4, 9),
+            'narrative_ratio': random.uniform(0.5, 0.8),
+            f'narrative_ratio_{narrative}': random.uniform(0.5, 0.8),
+            'narrative': narrative,
+            'total_number_of_posts': random.randint(40, 50),
+            'total_lines_of_posts': random.randint(40, 50),
+            'narrative_lines_of_posts': random.randint(10, 20),
+            f"narrative_number_of_posts_{narrative}": random.randint(10, 30),
+           }
