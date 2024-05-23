@@ -7,9 +7,10 @@ class Feature(ABC):
     """
     Abstract Feature class defines how feature _name_ is computed. Feature class has a name and value() methods.
     """
-    def __init__(self, name: str, platform: str = "reddit"):
+    def __init__(self, name: str, platform: str = "reddit", color: str = "blue"):
         self.name = name
         self.platform = platform
+        self.color = color
 
     def __str__(self):
         return self.name
@@ -44,7 +45,7 @@ class TotalNumberOfPostsFeature(Feature):
     Feature total_number_of_posts, defined for each user.
     """
     def __init__(self, platform: str = "reddit"):
-        super().__init__("total_number_of_posts", platform)
+        super().__init__("total_number_of_posts", platform, "#FF8080")
 
     def _value_from_actions(self, actions_script: list, start_time: int = 0, curr_time: int = None):
         return len(actions_script)
@@ -55,7 +56,7 @@ class NarrativeNumberOfPostsFeature(Feature):
     Feature total_number_of_posts, defined for each user.
     """
     def __init__(self, narrative, platform: str = "reddit"):
-        super().__init__("narrative_number_of_posts", platform)
+        super().__init__("narrative_number_of_posts", platform, "#FFCF96")
         self.narrative = narrative
 
     def _value_from_actions(self, actions_script: list, start_time: int = 0, curr_time: int = None):
@@ -71,7 +72,7 @@ class TotalLinesFeature(Feature):
     Feature total_number_of_posts, defined for each user.
     """
     def __init__(self, platform: str = "reddit"):
-        super().__init__("total_lines_of_posts", platform)
+        super().__init__("total_lines_of_posts", platform, "#F57F17")
 
     def _value_from_actions(self, actions_script: list, start_time: int = 0, curr_time: int = None):
         total_lines = sum([v['n_lines'] for v in actions_script])
@@ -83,7 +84,7 @@ class NarrativeLinesFeature(Feature):
     Feature total_number_of_posts, defined for each user.
     """
     def __init__(self, narrative, platform: str = "reddit"):
-        super().__init__("narrative_lines_of_posts", platform)
+        super().__init__("narrative_lines_of_posts", platform, "#AB47BC")
         self.narrative = narrative
 
     def _value_from_actions(self, actions_script: list, start_time: int = 0, curr_time: int = None):
@@ -99,7 +100,7 @@ class SleepHoursFeature(Feature):
     Feature sleep_hours is a list of hours when user sleeps,  defined for each user.
     """
     def __init__(self, platform: str ="reddit"):
-        super().__init__("sleep_hours", platform)
+        super().__init__("sleep_hours", platform, "#8EACCD")
 
     def _value_from_actions(self, actions_script: list, start_time: int = 0, curr_time: int = None):
         hours_of_sleep_dist = [0 for _ in range(24)]
@@ -113,7 +114,7 @@ class NarrativeRatioFeature(Feature):
     Feature narrative_ratio, defined for each user.
     """
     def __init__(self, platform: str = "reddit"):
-        super().__init__("narrative_ratio", platform)
+        super().__init__("narrative_ratio", platform, "#B06161")
 
     def _value_from_actions(self, actions_script: list, start_time: int = 0, curr_time: int = None):
         script_df = pd.DataFrame(actions_script)
@@ -132,7 +133,7 @@ class Rule(ABC):
     """
 
     def __init__(self, name: str, rule_str: str, outcome_name: str, rules: list, depends_on: list,
-                 features: list, platform: str ="reddit"):
+                 features: list, platform: str = "reddit", color: str = "black"):
         self.name = name
         self.platform = platform
         self.rule_str = rule_str
@@ -143,6 +144,7 @@ class Rule(ABC):
         self.rules = rules
         self.depends_on = depends_on
         self.features = features
+        self.color = color
 
     def rule_str(self) -> str:
         return self.rule_str
@@ -186,8 +188,8 @@ class AggregateRule(Rule):
                                         [[list_of_actions] | 1_0_-1_ban | rule_name         | feature_name ]
     """
 
-    def __init__(self, name: str, rule_str: str, outcome_name: str, rules: list, platform="reddit"):
-        super().__init__(name, rule_str, outcome_name, rules, [], [], platform)
+    def __init__(self, name: str, rule_str: str, outcome_name: str, rules: list, platform="reddit", color="black"):
+        super().__init__(name, rule_str, outcome_name, rules, [], [], platform, color)
         self.fit_data = None
 
     def get_DAG(self) -> nx.MultiDiGraph:
@@ -197,9 +199,10 @@ class AggregateRule(Rule):
         G = nx.MultiDiGraph()
         for rule in self.rules:
             rule_G = rule.get_DAG()
-            G.add_nodes_from(list(rule_G.nodes))
-            G.add_edges_from(list(rule_G.edges))
-
+            for n, node_data in rule_G.nodes(data=True):
+                G.add_node(n, color=node_data['color'])
+            for n0, n1, data in rule_G.edges(data=True):
+                G.add_edge(n0, n1, label=data['label'], color=data["color"])
         return G
 
     def pred(self, schedule: dict, start_time: int = 0, curr_time: int = None):
@@ -230,20 +233,25 @@ class BasicRule(Rule):
                                         [[list_of_actions] | 1_0_-1_ban | rule_name         | feature_name ]
     """
 
-    def __init__(self, name: str, rule_str: str, features: list, outcome_name: str = "ban", platform="reddit"):
+    def __init__(self, name: str, rule_str: str, features: list, outcome_name: str = "ban", platform="reddit", color=None):
         super().__init__(name, rule_str, outcome_name, [], [], features, platform)
         self.fit_data = None
+        if color is not None:
+            self.color = color
+        elif len(self.features) == 1:
+            self.color = self.features[0].color
+        # else: black
 
     def get_DAG(self) -> nx.MultiDiGraph:
         """
         Creates an NX graph with features nodes pointing at the ban node.
         """
         G = nx.MultiDiGraph()
-        feature_names = [f.name for f in self.features]
-        G.add_nodes_from(feature_names)
-        G.add_nodes_from([self.outcome_name])
-        G.add_edges_from([(f, self.outcome_name) for f in feature_names])
-
+        for f in self.features:
+            G.add_node(f.name, color=f.color)
+        G.add_node(self.outcome_name, color="red")
+        for f in self.features:
+            G.add_edge(f.name, self.outcome_name, label=self.name, color=self.color)
         return G
 
     @abstractmethod
@@ -337,10 +345,10 @@ class TotalNumberOfPostsRule(AbstractOneFeatureThresholdRule):
 
 class NarrativeNumberOfPostsRule(AbstractOneFeatureThresholdRule):
     def __init__(self, narrative):
-        super().__init__("narrative_number_of_posts",
+        super().__init__(f"narrative_number_of_posts_{narrative}" if narrative is not None else "narrative_number_of_posts",
                          "If the number of all posts with narrative <n> \nis in the \"to_ban\" range -> ban.\n"
                          "Also If the number of all posts with narrative <n> \nis in the \"no_to_ban\" range -> no ban.\n"
-                         "Otherwise no ban.",
+                         f"Otherwise no ban.\nNarrative: {narrative}",
                          [NarrativeNumberOfPostsFeature(narrative)], "ban")
 
 
@@ -355,12 +363,12 @@ class TotalLinesOfPostsRule(AbstractOneFeatureThresholdRule):
 
 class NarrativeLinesOfPostsRule(AbstractOneFeatureThresholdRule):
     def __init__(self, narrative):
-        super().__init__("narrative_lines_of_posts",
+        super().__init__(f"narrative_lines_of_posts_{narrative}" if narrative is not None else "narrative_lines_of_posts",
                          "If the number of lines with narrative <n> \nin all user posts is in the "
                          "\"to_ban\" range -> ban.\n"
                          "Also If the number of lines with narrative <n> \nin all user posts is in the "
                          "\"no_ban\" range -> no ban.\n"
-                         "Otherwise no ban.",
+                         f"Otherwise no ban.\nNarrative: {narrative}",
                          [NarrativeLinesFeature(narrative)], "ban")
 
 
@@ -435,9 +443,9 @@ class SleepHoursRule(BasicRule):
 
 class NarrativeRatioRule(BasicRule):
     def __init__(self, narrative: str = None):
-        super().__init__("narrative_ratio",
-                         "If narrative ratio is in the ban range -> ban.\n "
-                         "If narrative ratio is in no ban range -> no ban.",
+        super().__init__(f"narrative_ratio_{narrative}" if narrative is not None else "narrative_ratio",
+                         f"If narrative ratio is in the ban range -> ban.\n "
+                         f"If narrative ratio is in no ban range -> no ban.\n Narrative: {narrative}",
                          [NarrativeRatioFeature()], "ban")
         self.narrative = narrative
 
@@ -519,8 +527,8 @@ class FeaturesRelationshipRule(Rule):
     can have causal relationships among themselves. In such cases to add this relationship to DAG use this class
     FeaturesRelationshipRule.
     """
-    def __init__(self, name: str, rule_str: str, features: list, outcome_feature: Feature):
-        super().__init__(name, rule_str, outcome_feature.name, [],[], features)
+    def __init__(self, name: str, rule_str: str, features: list, outcome_feature: Feature, color="black"):
+        super().__init__(name, rule_str, outcome_feature.name, [],[], features, "reddit", color)
         self.outcome_feature = outcome_feature
 
     def pred(self, schedule: dict, start_time: int = 0, curr_time: int = None):
@@ -535,11 +543,11 @@ class FeaturesRelationshipRule(Rule):
         Creates an NX graph.
         """
         G = nx.MultiDiGraph()
-        feature_names = [f.name for f in self.features]
-        G.add_nodes_from(feature_names)
-        G.add_nodes_from([self.outcome_name])
-        G.add_edges_from([(f, self.outcome_name) for f in feature_names])
-
+        for f in self.features:
+            G.add_node(f.name, color=f.color)
+        G.add_node(self.outcome_feature.name, color=self.outcome_feature.color)
+        for f in self.features:
+            G.add_edge(f.name, self.outcome_feature.name, label=self.name, color=self.color)
         return G
 
 
