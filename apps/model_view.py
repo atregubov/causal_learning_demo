@@ -34,7 +34,7 @@ def model_div(app, data, username, hidden=True):
                         for rule in data[username]["rules"]]
     rules_df = pd.DataFrame.from_records(rules_data_table)
     for i, r in rules_df.iterrows():
-        fig = get_DAG_fig(data[username]["rules"][i].get_DAG())
+        fig = get_DAG_fig(data[username]["rules"][i].get_DAG(), show_edge_labels=True)
         rules_df.at[i, "graph"] = fig
 
     # local policy view table
@@ -43,10 +43,10 @@ def model_div(app, data, username, hidden=True):
                          "graph": rule.get_DAG(),
                          "Add to editor": "Add to \npolicy editor"
                          }
-                        for rule in data[username]["rules"]]
+                        for rule in data[username]["local"][0].rules]
     local_rules_df = pd.DataFrame.from_records(local_rules_data_table)
     for i, r in local_rules_df.iterrows():
-        fig = get_DAG_fig(r["graph"])
+        fig = get_DAG_fig(r["graph"], show_edge_labels=True)
         local_rules_df.at[i, "graph"] = fig
 
     # shared policy view table
@@ -58,21 +58,24 @@ def model_div(app, data, username, hidden=True):
                                for rule in data["shared"][0].rules]
     shared_rules_df = pd.DataFrame.from_records(shared_rules_data_table)
     for i, r in shared_rules_df.iterrows():
-        fig = get_DAG_fig(r["graph"])
+        fig = get_DAG_fig(r["graph"], show_edge_labels=True)
         shared_rules_df.at[i, "graph"] = fig
 
     # policy editor panel
-    editor_rules_data_table = [{"Name": rule.name,
-                                "Description": rule.rule_str,
-                                "Thresholds (fit data)": ["Local fit data"],
-                                "graph": rule.get_DAG(),
-                                "Remove": "Remove",
-                                }
-                               for rule in data[username]["editor"].rules]
-    editor_rules_df = pd.DataFrame.from_records(editor_rules_data_table)
-    for i, r in editor_rules_df.iterrows():
-        fig = get_DAG_fig(r["graph"])
-        editor_rules_df.at[i, "graph"] = fig
+    def get_editor_rules(data_):
+        editor_rules_data_table = [{"Name": rule.name,
+                                    "Description": rule.rule_str,
+                                    "Thresholds (fit data)": ["Local fit data"],
+                                    "graph": rule.get_DAG(),
+                                    "Remove": "Remove",
+                                    }
+                                   for rule in data_[username]["editor"].rules]
+        editor_rules_df = pd.DataFrame.from_records(editor_rules_data_table)
+        for i, r in editor_rules_df.iterrows():
+            fig = get_DAG_fig(r["graph"], show_edge_labels=True)
+            editor_rules_df.at[i, "graph"] = fig
+
+        return editor_rules_df.to_dict("records")
 
     ####################################################################################################################
     # Prepare table formating for panels
@@ -84,7 +87,7 @@ def model_div(app, data, username, hidden=True):
             "resizable": True,
             "cellStyle": {"wordBreak": "normal"},
             "wrapText": True,
-            "autoHeight": True,
+            # "autoHeight": True,
         },
         {
             "field": "Description",
@@ -92,7 +95,7 @@ def model_div(app, data, username, hidden=True):
             "resizable": True,
             "cellStyle": {"wordBreak": "normal"},
             "wrapText": True,
-            "autoHeight": True,
+            # "autoHeight": True,
             "minWidth": 200,
             "maxWidth": 600,
         },
@@ -139,7 +142,7 @@ def model_div(app, data, username, hidden=True):
             "field": "Description",
             "headerName": "Description",
             "resizable": True,
-            "cellStyle": {"wordBreak": "normal"},
+            "cellStyle": {"wordBreak": "normal", "line-height": "normal"},
             "wrapText": True,
             "autoHeight": True,
         },
@@ -165,7 +168,7 @@ def model_div(app, data, username, hidden=True):
             "field": "Description",
             "headerName": "Description",
             "resizable": True,
-            "cellStyle": {"wordBreak": "normal"},
+            "cellStyle": {"wordBreak": "normal", "line-height": "normal"},
             "wrapText": True,
             "autoHeight": True,
         },
@@ -188,8 +191,8 @@ def model_div(app, data, username, hidden=True):
             "field": "Remove",
             "cellRenderer": "DBC_Button_Simple",
             "cellRendererParams": {"color": "success"},
-            "minWidth": 100,
-            "maxWidth": 200,
+            "minWidth": 70,
+            "maxWidth": 110,
 
         },
     ]
@@ -205,7 +208,7 @@ def model_div(app, data, username, hidden=True):
                 columnSize="sizeToFit",
                 columnDefs=rules_table_columns,
                 defaultColDef={"filter": True, "minWidth": 60},
-                dashGridOptions={"rowHeight": 200, "animateRows": False},
+                dashGridOptions={"rowHeight": 280, "animateRows": False},
                 style={"height": 800, 'display': 'inline-block', 'resize': 'both', 'overflow': 'auto'},
 
             ),
@@ -241,7 +244,7 @@ def model_div(app, data, username, hidden=True):
         [
             dag.AgGrid(
                 id="editor_table_div",
-                rowData=editor_rules_df.to_dict("records"),
+                rowData=get_editor_rules(data),
                 columnSize="sizeToFit",
                 columnDefs=editor_columns,
                 defaultColDef={"filter": True, "minWidth": 60},
@@ -266,12 +269,13 @@ def model_div(app, data, username, hidden=True):
                                                      html.I('DAG:'),
                                                      dcc.Checklist(
                                                          ['Show rule name on edges'],
-                                                         ['Show rule name on edges', ],
+                                                         [],
                                                          id="show_rule_names_local",
                                                          inline=True
                                                      ),
                                                      dcc.Graph(id='local_dag',
-                                                               figure=get_DAG_fig(data[username]["local"][0].get_DAG())),
+                                                               figure=get_DAG_fig(data[username]["local"][0].get_DAG(),
+                                                                                  show_edge_labels=False)),
                                             ],
                                            style={'width': '50%', 'padding': '10px 10px 20px 20px', 'display': 'inline-block'}
                                            ),
@@ -288,12 +292,13 @@ def model_div(app, data, username, hidden=True):
                                                      html.I('DAG:'),
                                                      dcc.Checklist(
                                                          ['Show rule name on edges'],
-                                                         ['Show rule name on edges', ],
+                                                         [],
                                                          id="show_rule_names_shared",
                                                          inline=True
                                                      ),
                                                      dcc.Graph(id='shared_dag',
-                                                               figure=get_DAG_fig(data["shared"][0].get_DAG())),
+                                                               figure=get_DAG_fig(data["shared"][0].get_DAG(),
+                                                                                  show_edge_labels=False)),
                                                      ],
                                            style={'width': '50%', 'padding': '10px 10px 20px 20px',
                                                   'display': 'inline-block'}
@@ -324,17 +329,19 @@ def model_div(app, data, username, hidden=True):
                                                               children=[html.I('DAG: '),
                                                                         dcc.Checklist(
                                                                             ['Show rule name on edges'],
-                                                                            ['Show rule name on edges',],
+                                                                            [],
                                                                             inline=True,
-                                                                        id="show_rule_names_editor",
+                                                                            id="show_rule_names_editor",
                                                                         ),
                                                                         dcc.Graph(id='editor_dag',
                                                                                   figure=get_DAG_fig(data[username][
-                                                                                                         "editor"].get_DAG()),
+                                                                                                         "editor"].get_DAG(),
+                                                                                                     show_edge_labels=False),
                                                                                   style={"height": 800, 'width': '100%',
                                                                                          'display': 'inline-block',
                                                                                          'resize': 'both',
-                                                                                         'overflow': 'auto'}),
+                                                                                         'overflow': 'auto'},
+                                                                                  ),
                                                                         ],
                                                               style={'width': '40%', 'padding': '0px 0px 0px 0px',
                                                                      'display': 'inline-block'}
@@ -343,7 +350,7 @@ def model_div(app, data, username, hidden=True):
                                                               children=[html.I('Rules: '),
                                                                         editor_table_div,
                                                                         ],
-                                                              style={'width': '60%', 'padding': '0px 0px 0px 0px',
+                                                              style={'width': '60%', 'padding': '0px 0px 0px 10px',
                                                                      'display': 'inline-block'}
                                                               ),
                                                      ],
@@ -362,6 +369,57 @@ def model_div(app, data, username, hidden=True):
     )
     def update_output(n_clicks, value):
         return f"Policy \"{value}\" saved."
+
+    @app.callback(
+        Output('editor_dag', 'figure'),
+        Input('show_rule_names_editor', 'value'),
+        prevent_initial_call=True
+    )
+    def update_editor_dag(checked_vals):
+        return get_DAG_fig(data[username]["editor"].get_DAG(), show_edge_labels=False if len(checked_vals) == 0 else True)
+
+    @app.callback(
+        Output('shared_dag', 'figure'),
+        Input('show_rule_names_shared', 'value'),
+        prevent_initial_call=True
+    )
+    def update_shared_dag(checked_vals):
+        return get_DAG_fig(data["shared"][0].get_DAG(), show_edge_labels=False if len(checked_vals) == 0 else True)
+
+    @app.callback(
+        Output('local_dag', 'figure'),
+        Input('show_rule_names_local', 'value'),
+        prevent_initial_call=True
+    )
+    def update_local_dag(checked_vals):
+        return get_DAG_fig(data[username]["local"][0].get_DAG(), show_edge_labels=False if len(checked_vals) == 0 else True)
+
+    # REMOVE button
+    @app.callback(
+        Output('editor_dag', 'figure'),
+        Output('editor_table_div', 'rowData'),
+        Input("editor_table_div", "cellRendererData"),
+        State('show_rule_names_editor', 'value'),
+        prevent_initial_call=True
+    )
+    def update_editor_DAG_after_removal(idx_to_remove, checked_vals):
+        if idx_to_remove is not None:
+            del data[username]["editor"].rules[idx_to_remove["rowIndex"]]
+        dag_fig = get_DAG_fig(data[username]["editor"].get_DAG(), show_edge_labels=False if len(checked_vals) == 0 else True)
+        return dag_fig, get_editor_rules(data)
+
+    @app.callback(
+        Output('editor_dag', 'figure'),
+        Output('editor_table_div', 'rowData'),
+        Input("rules_table_div_id", "cellRendererData"),
+        State('show_rule_names_editor', 'value'),
+        prevent_initial_call=True
+    )
+    def update_editor_DAG_after_adding(idx_to_add, checked_vals):
+        if idx_to_add is not None:
+            data[username]["editor"].rules.append( data[username]["rules"][idx_to_add["rowIndex"]])
+        dag_fig = get_DAG_fig(data[username]["editor"].get_DAG(), show_edge_labels=False if len(checked_vals) == 0 else True)
+        return dag_fig, get_editor_rules(data)
 
     return panels_div
 
@@ -409,7 +467,7 @@ def hierarchy_pos(G, root, width=1., vert_gap = 0.2, vert_loc = 0, xcenter = 0.5
     return pos
 
 
-def get_DAG_fig(G):
+def get_DAG_fig(G, show_edge_labels=True):
     lay = nx.layout.circular_layout(G)
     if len(list(G.nodes)) > 2 and "ban" in G.nodes:
         lay = hierarchy_pos(G, "ban")
@@ -460,7 +518,7 @@ def get_DAG_fig(G):
                         showlegend=False,
                         hovermode='closest',
                         margin=dict(b=1, l=1, r=1, t=1),
-                        font=dict(size=18),
+                        font=dict(size=16),
                         xaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
                         yaxis=dict(showgrid=False, zeroline=False, showticklabels=False))
                     )
@@ -486,17 +544,18 @@ def get_DAG_fig(G):
             )
         )
         list_of_all_arrows.append(arrow)
-        angle = (math.atan((x1 - x0) / (y1 - y0)) / math.pi)*180
-        arrow_label = go.layout.Annotation(dict(
-            x=(x0 + x1) / 2 if angle > 0 else (x0 + x1) / 2 * 1.02,
-            y=(y0 + y1) / 2 if angle > 0 else (y0 + y1) / 2 * 1.05,
-            xref="x", yref="y",
-            text = edge_label,
-            textangle = int(angle - 90) if angle > 0 else  int(angle + 90),
-            font = dict(color=edge_color)
+        angle = (math.atan((x1 - x0) / (y1 - y0)) / math.pi)*180 if y1 != y0 else 90
+        if show_edge_labels:
+            arrow_label = go.layout.Annotation(dict(
+                x=(x0 + x1) / 2 if angle > 0 else (x0 + x1) / 2 * 1.02,
+                y=(y0 + y1) / 2 if angle > 0 else (y0 + y1) / 2 * 1.05,
+                xref="x", yref="y",
+                text = edge_label,
+                textangle = int(angle - 90) if angle > 0 else int(angle + 90),
+                font = dict(color=edge_color)
+                )
             )
-        )
-        list_of_all_arrows.append(arrow_label)
+            list_of_all_arrows.append(arrow_label)
 
     fig.update_layout(annotations=list_of_all_arrows)
 
