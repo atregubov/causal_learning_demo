@@ -2,6 +2,7 @@ import json
 from pathlib import Path
 import pandas as pd
 from model.rules import *
+from model.schedules import *
 
 
 def load_users(users_path: Path):
@@ -38,6 +39,9 @@ def load_data(data_path: Path):
                              AggregateRule("S1: Local sleep policy", "Trigger ban if constituent rule triggered",
                                     "ban", [SleepHoursRule()]),
                              ],
+                   "schedule": generate_site_schedule(site_idx=0),
+                   "thresholds": {"local:S1 initial": get_random_thresholds("un"),
+                                  "local:S1 historical data fit": get_random_thresholds("un") },
                    "editor": AggregateRule("Shared policy on number of posts", "Trigger ban if constituent rule triggered",
                                      "ban",
                                      [#SleepHoursRule(),
@@ -54,6 +58,9 @@ def load_data(data_path: Path):
                                            "ban", [TotalNumberOfPostsRule(),
                                                    NarrativeRatioRule()]),
                              ],
+                   "schedule": generate_site_schedule(site_idx=1),
+                   "thresholds": {"local:S2 initial": get_random_thresholds("un"),
+                                  "local:S2 historical data fit": get_random_thresholds("un")},
                    "editor": AggregateRule("New policy", "Trigger ban if constituent rule triggered",
                                            "ban", [SleepHoursRule()])
                    },
@@ -64,6 +71,9 @@ def load_data(data_path: Path):
                                                    NarrativeRatioRule(),
                                                    TotalNumberOfLinesCauseSleepHoursRule()]),
                              ],
+                   "schedule": generate_site_schedule(site_idx=2),
+                   "thresholds": {"local:S3 initial": get_random_thresholds("un"),
+                                  "local:S3 historical data fit": get_random_thresholds("un")},
                    "editor": AggregateRule("New policy", "Trigger ban if constituent rule triggered",
                                            "ban", [SleepHoursRule()])
                    },
@@ -76,6 +86,9 @@ def load_data(data_path: Path):
                                       TotalNumberOfPostsCauseSleepHoursRule(),
                                       TotalNumberOfLinesCauseSleepHoursRule()],
                                      )],
+            "thresholds": {"shared:S1": get_random_thresholds("un"),
+                           "shared:S2": get_random_thresholds("un"),
+                           "shared:S3": get_random_thresholds("un")},
             }
     return data
 
