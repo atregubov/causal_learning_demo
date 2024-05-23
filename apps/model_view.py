@@ -26,7 +26,6 @@ def model_div(app, data, username, hidden=True):
     # all rules table
     rules_data_table = [{"Name": rule.name,
                          "Description": rule.rule_str,
-                         "Local": rule.local,
                          "Shared": not(rule.local),
                          "graph": rule.get_DAG(),
                          "Add to editor": "Add to \npolicy editor"
@@ -98,13 +97,6 @@ def model_div(app, data, username, hidden=True):
             # "autoHeight": True,
             "minWidth": 200,
             "maxWidth": 600,
-        },
-        {
-            "field": "Local",
-            "headerName": "Local",
-            "maxWidth": 100,
-            "minWidth": 70,
-
         },
         {
             "field": "Shared",
@@ -253,6 +245,9 @@ def model_div(app, data, username, hidden=True):
             ),
         ]
     )
+
+    thresholds = [t for t in data[username]["thresholds"].keys()]
+    thresholds.extend(list(data["thresholds"].keys()))
     # div with all panels together
     panels_div = (html.Div(id="panels_div",
                            style={'display': 'none'} if hidden else {'display': 'block'},
@@ -262,6 +257,9 @@ def model_div(app, data, username, hidden=True):
                                                                   data[username]["local"][0].name, id='local-dropdown'),
                                                      html.I('Policy name: '),
                                                      html.B(data[username]["local"][0].name, id='local_rule_name'),
+                                                     html.Br(),
+                                                     html.Button('Edit', id='edit_local_btn', n_clicks=0,
+                                                                 style={'padding': '10px 10px 10px 10px'}),
                                                      html.Br(),
                                                      html.I('Rules: '),
                                                      local_table_div,
@@ -286,6 +284,9 @@ def model_div(app, data, username, hidden=True):
                                                      html.I('Policy name: '),
                                                      html.B(data["shared"][0].name, id='shared_rule_name'),
                                                      html.Br(),
+                                                     html.Button('Edit', id='edit_shared_btn', n_clicks=0,
+                                                                 style={'padding': '10px 10px 10px 10px'}),
+                                                     html.Br(),
                                                      html.I('Rules: '),
                                                      shared_table_div,
                                                      html.Br(),
@@ -306,27 +307,48 @@ def model_div(app, data, username, hidden=True):
                                   html.Div(id="all_rules_div",
                                           children=[html.H2("Rules"),
                                                     html.Br(),
+                                                    html.Button('Update local thresholds (fit to historical data)', id='local_fit_btn',
+                                                                n_clicks=0,
+                                                                style={'padding': '10px 10px 10px 10px'}),
+                                                    html.Button('Share local thresholds', id='share_thresholds_btn',
+                                                                n_clicks=0,
+                                                                style={'padding': '10px 10px 10px 10px'}),
+                                                    html.Br(),
                                                     rules_table_div,
                                                     ],
                                           style={'width': '100%', 'padding': '10px 10px 20px 20px',
                                                  'display': 'inline-block'}
                                           ),
                                   html.Div(id="editor_div",
-                                           children=[html.H2("Policy editor"),
-                                                     html.Div([
-                                                         html.I('Policy name: '),
-                                                         dcc.Input(id='editor_policy_name', type='string',
-                                                                   value=data[username]["editor"].name, debounce=True),
-                                                         html.Br(),
-                                                         html.Button('Save', id='save_btn', n_clicks=0, style={'padding': '10px 10px 10px 10px'}),
-                                                         html.Button('Fit', id='fit_btn', n_clicks=0, style={'padding': '10px 10px 10px 10px'}),
-                                                         html.Button('Share', id='share_btn', n_clicks=0, style={'padding': '10px 10px 10px 10px'}),
-                                                         html.Button('Evaluate', id='evaluate_btn', n_clicks=0, style={'padding': '10px 10px 10px 10px'}),
-                                                         html.Div(id='editor_notification', children='Saved.')
-                                                     ]),
-                                                     html.Br(),
+                                           children=[html.Div(id="evaluation_div_id",
+                                                              children=[html.H2('Evaluation'),
+                                                                        html.I(f'Total number of bans: {10}'),
+                                                                        html.Br(),
+                                                                        dcc.Graph(
+                                                                            id="evaluation_figure_id",
+                                                                            figure=get_triggered_rules_figure(data,
+                                                                                                              username,
+                                                                                                              "None")
+                                                                        )
+                                                                        ],
+                                                              style={'width': '100%', 'padding': '0px 0px 0px 0px',
+                                                                     'display': 'none'}
+
+                                                              ),
+                                                     html.H2("Policy editor"),
+                                                     html.Div(id='editor_notification', children=''),
                                                      html.Div(id="editor_dag_div",
-                                                              children=[html.I('DAG: '),
+                                                              children=[html.I('Policy name: '),
+                                                                        dcc.Input(id='editor_policy_name', type='string',
+                                                                                   value=data[username]["editor"].name, debounce=True),
+                                                                        html.Button('Save', id='save_btn', n_clicks=0,
+                                                                                     style={'padding': '10px 10px 10px 10px'}),
+                                                                        html.Button('Share DAG', id='share_dag_btn', n_clicks=0,
+                                                                                     style={'padding': '10px 10px 10px 10px'}),
+                                                                        html.Button('Evaluate', id='evaluate_btn', n_clicks=0,
+                                                                                     style={'padding': '10px 10px 10px 10px'}),
+                                                                        html.Br(),
+                                                                        html.I('DAG: '),
                                                                         dcc.Checklist(
                                                                             ['Show rule name on edges'],
                                                                             [],
@@ -347,7 +369,11 @@ def model_div(app, data, username, hidden=True):
                                                                      'display': 'inline-block'}
                                                               ),
                                                      html.Div(id="editor_rules_div",
-                                                              children=[html.I('Rules: '),
+                                                              children=[html.I('Choose thresholds: '),
+                                                                        dcc.Dropdown(thresholds,
+                                                                                     id='editor_fit_data_dropdown'),
+                                                                        html.Br(),
+                                                                        html.I('Rules: '),
                                                                         editor_table_div,
                                                                         ],
                                                               style={'width': '60%', 'padding': '0px 0px 0px 10px',
@@ -363,12 +389,35 @@ def model_div(app, data, username, hidden=True):
 
     @app.callback(
         Output('editor_notification', 'children'),
+        Output('evaluation_div_id', 'style'),
+        Output('evaluation_figure_id', 'figure'),
+        Input('evaluate_btn', 'n_clicks'),
+        State('editor_policy_name', 'value'),
+        prevent_initial_call=True
+    )
+    def evaluate_notification(n_clicks, value):
+        msg = f"*Policy \"{value}\" evaluated."
+        style = {'width': '100%', 'padding': '0px 0px 0px 0px', 'display': 'inline-block'}
+        fig = get_triggered_rules_figure(data, username, "")
+        return msg, style,  fig
+
+    @app.callback(
+        Output('editor_notification', 'children'),
         Input('save_btn', 'n_clicks'),
         State('editor_policy_name', 'value'),
         prevent_initial_call=True
     )
-    def update_output(n_clicks, value):
-        return f"Policy \"{value}\" saved."
+    def saved_notification(n_clicks, value):
+        return f"*Policy \"{value}\" saved."
+
+    @app.callback(
+        Output('editor_notification', 'children'),
+        Input('share_dag_btn', 'n_clicks'),
+        State('editor_policy_name', 'value'),
+        prevent_initial_call=True
+    )
+    def shared_notification(n_clicks, value):
+        return f"*Policy \"{value}\" shared."
 
     @app.callback(
         Output('editor_dag', 'figure'),
@@ -398,6 +447,7 @@ def model_div(app, data, username, hidden=True):
     @app.callback(
         Output('editor_dag', 'figure'),
         Output('editor_table_div', 'rowData'),
+        Output('evaluation_figure_id', 'figure'),
         Input("editor_table_div", "cellRendererData"),
         State('show_rule_names_editor', 'value'),
         prevent_initial_call=True
@@ -406,11 +456,13 @@ def model_div(app, data, username, hidden=True):
         if idx_to_remove is not None:
             del data[username]["editor"].rules[idx_to_remove["rowIndex"]]
         dag_fig = get_DAG_fig(data[username]["editor"].get_DAG(), show_edge_labels=False if len(checked_vals) == 0 else True)
-        return dag_fig, get_editor_rules(data)
+        fig = get_triggered_rules_figure(data, username, "")
+        return dag_fig, get_editor_rules(data), fig
 
     @app.callback(
         Output('editor_dag', 'figure'),
         Output('editor_table_div', 'rowData'),
+        Output('evaluation_figure_id', 'figure'),
         Input("rules_table_div_id", "cellRendererData"),
         State('show_rule_names_editor', 'value'),
         prevent_initial_call=True
@@ -419,7 +471,8 @@ def model_div(app, data, username, hidden=True):
         if idx_to_add is not None:
             data[username]["editor"].rules.append( data[username]["rules"][idx_to_add["rowIndex"]])
         dag_fig = get_DAG_fig(data[username]["editor"].get_DAG(), show_edge_labels=False if len(checked_vals) == 0 else True)
-        return dag_fig, get_editor_rules(data)
+        fig = get_triggered_rules_figure(data, username, "")
+        return dag_fig, get_editor_rules(data), fig
 
     return panels_div
 
@@ -560,4 +613,17 @@ def get_DAG_fig(G, show_edge_labels=True):
     fig.update_layout(annotations=list_of_all_arrows)
 
     return fig
+
+
+def get_triggered_rules_figure(data, username, fit_data_version):
+    figure = {'data': [
+            {'y': [idx + 1 for idx, rule in enumerate(data[username]["editor"].rules)],
+             'x': [rule.name for rule in data[username]["editor"].rules],
+             'type': 'bar', 'name': fit_data_version},
+        ],
+        'layout': {
+            'title': 'Number of times each rule was triggered'
+        }
+    }
+    return figure
 
