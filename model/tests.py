@@ -52,35 +52,34 @@ class TestRules(unittest.TestCase):
                                     2: [1, 2]
                                     }
         # Initial schedule before rescheduling
-        schedule_before_rescheduling = generate_script(n_agents=100, n_sites=3, start_time=0,
+        schedule_before_rescheduling = generate_script(n_agents=100, site_idx=1, start_time=0,
                                                        n_actions=number_of_actions_per_agent,
                                                        activity_dist=activity_dist,
                                                        narrative_dist=narrative_dist,
                                                        n_lines_per_post=number_of_lines_per_post)
 
-        # schedule_before_rescheduling["puppet_0_0"]["reddit"]
 
         sleep_h_rule = SleepHoursRule()
-        sleep_h_rule.fit_data = {sleep_h_rule.features[0].name: {"banned": {"min": 0, "max": 6}, "notbanned": {"min": 8, "max": 22}}}
-        sleep_h_rule.pred(schedule_before_rescheduling, 0)
-        sleep_h_rule.fit(schedule_before_rescheduling, 0)
+        initial_thresholds = {sleep_h_rule.name: {"banned": {"min": 0, "max": 6}, "notbanned": {"min": 8, "max": 22}}}
+        sleep_h_rule.pred(fit_data=initial_thresholds, schedule=schedule_before_rescheduling, start_time=0, curr_time=0)
+        updated_thresholds = sleep_h_rule.fit(schedule=schedule_before_rescheduling, start_time=0, curr_time=0)
 
         sleep_h_rule2 = SleepHoursRule()
-        sleep_h_rule2.fit_data = {sleep_h_rule2.features[0].name: {"banned": {"min": 0, "max": 6}, "notbanned": {"min": 8, "max": 22}}}
-        sleep_h_rule2.pred(schedule_before_rescheduling, 0)
-        sleep_h_rule2.fit(schedule_before_rescheduling, 0)
+        initial_thresholds = initial_thresholds | {sleep_h_rule2.name: {"banned": {"min": 0, "max": 6}, "notbanned": {"min": 8, "max": 22}}}
+        sleep_h_rule2.pred(fit_data=initial_thresholds, schedule=schedule_before_rescheduling, start_time=0, curr_time=0)
+        updated_thresholds = updated_thresholds | sleep_h_rule2.fit(schedule=schedule_before_rescheduling, start_time=0, curr_time=0)
 
         narrative_ratio_rule = NarrativeRatioRule(narrative="un")
-        narrative_ratio_rule.fit_data = {narrative_ratio_rule.features[0].name: {"banned": {"min": 0.5, "max": 1.0}, "notbanned": {"min": 0, "max": 0.3}}}
-        narrative_ratio_rule.pred(schedule_before_rescheduling, 0)
-        narrative_ratio_rule.fit(schedule_before_rescheduling, 0)
-
+        initial_thresholds = initial_thresholds | {narrative_ratio_rule.name: {"banned": {"min": 0.5, "max": 1.0}, "notbanned": {"min": 0, "max": 0.3}}}
+        narrative_ratio_rule.pred(fit_data=initial_thresholds, schedule=schedule_before_rescheduling, start_time=0, curr_time=0)
+        updated_thresholds = updated_thresholds | narrative_ratio_rule.fit(schedule=schedule_before_rescheduling, start_time=0, curr_time=0)
 
         total_lines_rule = TotalLinesOfPostsRule()
-        total_lines_rule.fit_data = {total_lines_rule.features[0].name: {"banned": {"min": 18, "max": 100}, "notbanned": {"min": 0, "max": 5}}}
-        total_lines_rule.pred(schedule_before_rescheduling, 0)
-        total_lines_rule.fit(schedule_before_rescheduling, 0)
+        initial_thresholds = initial_thresholds | {total_lines_rule.name: {"banned": {"min": 18, "max": 100}, "notbanned": {"min": 0, "max": 5}}}
+        total_lines_rule.pred(fit_data=initial_thresholds, schedule=schedule_before_rescheduling, start_time=0, curr_time=0)
+        updated_thresholds = updated_thresholds | total_lines_rule.fit(schedule=schedule_before_rescheduling, start_time=0, curr_time=0)
 
+        print(f"{updated_thresholds=}")
         complex_rule = AggregateRule("Complex Rule", "Two sleep rules, narrative_ratio_rule and total_lines_rule", "ban",
                                      [sleep_h_rule, sleep_h_rule2, narrative_ratio_rule, total_lines_rule, TotalNumberOfPostsCauseSleepHoursRule()])
 

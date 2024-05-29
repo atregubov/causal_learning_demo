@@ -1,6 +1,7 @@
 import random
 import pydot
 import networkx as nx
+from model.rules import Rule
 
 
 def to_nx_DAG(d_model, verbose=False):
@@ -92,9 +93,9 @@ def generate_site_schedule(site_idx, n_agents=100, start_time=0):
                      1: [0, 0, 0, 1, 1, 1, 1, 5, 1, 9, 1, 1, 10, 10, 1, 1, 5, 4, 4, 4, 1, 6, 1, 1],
                      2: [0, 0, 0, 0, 0, 1, 1, 5, 1, 9, 1, 1, 10, 10, 1, 1, 5, 4, 4, 4, 1, 6, 1, 1],
                      }  # site-0 # site-1 # site-2
-    narrative_dist = {0: {'un': 60, 'travel': 20, 'mistreatment': 15, 'prejudice': 5},
-                      1: {'un': 40, 'anti': 20, 'travel': 10, 'pro': 15, 'infrastructure': 15},
-                      2: {'environmentalism': 20, 'covid': 20, 'debt': 20, 'pro': 25, 'un': 10}
+    narrative_dist = {0: {'baseball': 60, 'travel': 20, 'mistreatment': 15, 'prejudice': 5},
+                      1: {'baseball': 40, 'anti': 20, 'travel': 10, 'pro': 15, 'infrastructure': 15},
+                      2: {'environmentalism': 20, 'covid': 20, 'debt': 20, 'pro': 25, 'baseball': 10}
                       }  # %
     number_of_actions_per_agent = {0: [2, 25],
                                    1: [3, 25],
@@ -122,3 +123,12 @@ def get_random_thresholds(narrative):
             'narrative_lines_of_posts': random.randint(10, 20),
             f"narrative_number_of_posts_{narrative}": random.randint(10, 30),
            }
+
+
+def generate_historical_data(schedule: dict, thresholds: dict, policy:Rule) -> dict:
+    policy.pred(fit_data=thresholds, schedule=schedule, start_time=0, curr_time=0)
+    # for user, u_schedule in schedule.items():
+    #     u_schedule[policy.platform]["triggered_rules"] = dict()
+
+    return schedule
+

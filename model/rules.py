@@ -20,7 +20,13 @@ class Feature(ABC):
 
     @abstractmethod
     def _value_from_actions(self, actions_script: list, start_time: int = 0, curr_time: int = None):
-        return None
+        """
+        Computes feature value from list of agent's actions.
+        :param actions_script:
+        :param start_time:
+        :param curr_time:
+        :return:
+        """
 
     def value(self, schedule: dict, start_time: int = 0, curr_time: int = None):
         """
@@ -56,7 +62,7 @@ class NarrativeNumberOfPostsFeature(Feature):
     Feature total_number_of_posts, defined for each user.
     """
     def __init__(self, narrative, platform: str = "reddit"):
-        super().__init__("narrative_number_of_posts", platform, "#FFCF96")
+        super().__init__("narrative_number_of_posts", platform, "#1f6e19")
         self.narrative = narrative
 
     def _value_from_actions(self, actions_script: list, start_time: int = 0, curr_time: int = None):
@@ -159,15 +165,14 @@ class Rule(ABC):
         """
         Creates an NX graph.
         """
-        return None
 
     @abstractmethod
     def pred(self, fit_data: dict, schedule: dict, start_time: int = 0, curr_time: int = None):
         """
         Predict outcome value (e.g. ban), predicted outcome is added to the schedule
-        ( in schedule[user_id][self.platform]["triggered_rules"][self.rule_name] ).
+        ( in schedule[user_id][self.platform]["triggered_rules"][self.rule_name] and ban in
+        schedule[user_id][self.platform]["ban"] ).
         """
-        return None
 
     @abstractmethod
     def fit(self, schedule: dict, start_time: int = 0, curr_time: int = None):
@@ -176,7 +181,6 @@ class Rule(ABC):
         fit_data is a dictionary {"rule_name": {"fit_data"}}
         The schedule must have ban labels in schedule[user_id][self.platform]["ban"]
         """
-        return None
 
 
 class AggregateRule(Rule):
@@ -207,12 +211,11 @@ class AggregateRule(Rule):
     def pred(self, fit_data: dict, schedule: dict, start_time: int = 0, curr_time: int = None):
         """
         Predict outcome value (e.g. ban), predicted outcome is added to the schedule
-        ( in schedule[user_id][self.platform]["triggered_rules"][self.rule_name] ).
+        ( in schedule[user_id][self.platform]["triggered_rules"][self.rule_name] and ban in
+        schedule[user_id][self.platform]["ban"] ).
         """
-        pred_vals = list()
         for rule in self.rules:
-            pred_vals.append(rule.pred(fit_data[rule.name], schedule, start_time, curr_time))
-        return max(pred_vals)
+            rule.pred(fit_data, schedule, start_time, curr_time)
 
     def fit(self, schedule: dict, start_time: int = 0, curr_time: int = None):
         f"""
@@ -259,9 +262,9 @@ class BasicRule(Rule):
     def pred(self, fit_data: dict,  schedule: dict, start_time: int = 0, curr_time: int = None):
         """
         Predict outcome value (e.g. ban), predicted outcome is added to the schedule
-        ( in schedule[user_id][self.platform]["triggered_rules"][self.rule_name] ).
+        ( in schedule[user_id][self.platform]["triggered_rules"][self.rule_name] and ban in
+        schedule[user_id][self.platform]["ban"] ).
         """
-        return None
 
     def feature_values(self, schedule: dict, start_time: int = 0, curr_time: int = None):
         """
@@ -278,7 +281,6 @@ class BasicRule(Rule):
         fit_data is a dictionary {"rule_name": {"fit_data"}}
         The schedule must have ban labels in schedule[user_id][self.platform]["ban"]
         """
-        return None
 
 
 class AbstractOneFeatureThresholdRule(BasicRule):
@@ -443,12 +445,9 @@ class SleepHoursRule(BasicRule):
         return fit_data
 
 
-class SleepAndPostsRule(BasicRule):
-    def __init__(self):
-        super().__init__("sleep_and_posts",
-                         "Decision tree classifier is used to determine ban. The classifier uses two features: "
-                         "sleep_hours and total_number and total_number_of_posts.",
-                         [SleepHoursFeature(), TotalNumberOfPostsFeature()], "ban", color="#1336c4")
+class DecisionTreeRule(BasicRule):
+    def __init__(self, name: str, rule_str: str, features: list, color: str="#1336c4"):
+        super().__init__(name,rule_str, features, "ban", color=color)
 
     def pred(self, fit_data: dict, schedule: dict, start_time: int = 0, curr_time: int = None):
         if fit_data[self.name] is None:
@@ -457,13 +456,43 @@ class SleepAndPostsRule(BasicRule):
         # update feature values
         self.feature_values(schedule, start_time, curr_time)
         #TODO: add call to classifier
-        return 1
+        return
 
     def fit(self, schedule: dict, start_time: int = 0, curr_time: int = None):
+        #training_df = pd.DataFrame.from_records()
         # TODO: add classifier fit
         fit_data = dict()
         fit_data[self.name] = {}
         return fit_data
+
+    def get_DAG(self) -> nx.MultiDiGraph:
+        """
+        Creates an NX graph with features nodes pointing at the ban node.
+        """
+        G = nx.MultiDiGraph()
+        for f in self.features:
+            G.add_node(f.name, color=f.color)
+        G.add_node(self.outcome_name, color="red")
+        for f in self.features:
+            G.add_edge(f.name, self.outcome_name, label=self.name, color=self.color)
+        #G.add_edge(self.features[1].name, self.features[0].name, label=self.name, color=self.color)
+        return G
+
+
+class SleepAndPostsRule(DecisionTreeRule):
+    def __init__(self):
+        super().__init__("sleep_and_posts",
+                         "Decision tree classifier is used to determine ban.",
+                         [SleepHoursFeature(), TotalNumberOfPostsFeature()],
+                         "#1336c4")
+
+
+class PostsAndBaseballPostsRule(DecisionTreeRule):
+    def __init__(self):
+        super().__init__("posts_and_baseball_posts",
+                         "Decision tree classifier is used to determine ban. The classifier uses two features: "
+                         "sleep_hours and total_number and total_number_of_posts.",
+                         [TotalNumberOfPostsFeature(), NarrativeNumberOfPostsFeature(narrative="baseball")],"#1336c4")
 
 
 class NarrativeRatioRule(BasicRule):
@@ -565,7 +594,7 @@ class FeaturesRelationshipRule(Rule):
             feature.value(schedule, start_time, curr_time)
 
     def fit(self, schedule: dict, start_time: int = 0, curr_time: int = None):
-        return None
+        return
 
     def get_DAG(self) -> nx.MultiDiGraph:
         """
@@ -596,19 +625,20 @@ class TotalNumberOfLinesCauseSleepHoursRule(FeaturesRelationshipRule):
 
 RULES = {r.name: r for r in [SleepHoursRule(),
                              TotalNumberOfPostsRule(),
-                             NarrativeRatioRule(narrative="un"),
+                             NarrativeRatioRule(narrative="baseball"),
                              TotalLinesOfPostsRule(),
-                             NarrativeNumberOfPostsRule(narrative="un"),
-                             NarrativeLinesOfPostsRule(narrative="un"),
+                             NarrativeNumberOfPostsRule(narrative="baseball"),
+                             NarrativeLinesOfPostsRule(narrative="baseball"),
                              TotalNumberOfPostsCauseSleepHoursRule(),
                              TotalNumberOfLinesCauseSleepHoursRule(),
-                             SleepAndPostsRule()
+                             SleepAndPostsRule(),
+                             PostsAndBaseballPostsRule()
                              ]}
 
 FEATURES = {f.name: f for f in [SleepHoursFeature(),
                                 TotalNumberOfPostsFeature(),
                                 TotalLinesFeature(),
                                 NarrativeRatioFeature(),
-                                NarrativeNumberOfPostsFeature(narrative="un"),
-                                NarrativeLinesFeature(narrative="un")]}
+                                NarrativeNumberOfPostsFeature(narrative="baseball"),
+                                NarrativeLinesFeature(narrative="baseball")]}
 
