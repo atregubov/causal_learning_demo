@@ -134,13 +134,6 @@ def generate_historical_data(schedule: dict, thresholds: dict, policy:Rule) -> d
 
 
 def get_local_data_fit_for_all_rules(schedule: dict) -> dict:
-    RULES = {r.name: r for r in [SleepHoursRule(),
-                                 TotalNumberOfPostsRule(),
-                                 NarrativeRatioRule(narrative="baseball"),
-                                 TotalLinesOfPostsRule(),
-                                 NarrativeNumberOfPostsRule(narrative="baseball"),
-                                 NarrativeLinesOfPostsRule(narrative="baseball"),
-                                 ]}
     for feature in FEATURES.values():
         feature.value(schedule, 0, 0)
     fit_data = dict()

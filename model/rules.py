@@ -1,6 +1,9 @@
 import pandas as pd
 import networkx as nx
 from abc import ABC, abstractmethod
+from sklearn.model_selection import train_test_split
+from sklearn.tree import DecisionTreeClassifier
+import numpy as np
 
 
 class Feature(ABC):
@@ -458,14 +461,44 @@ class DecisionTreeRule(BasicRule):
 
         # update feature values
         self.feature_values(schedule, start_time, curr_time)
-        #TODO: add call to classifier
-        return
+
+        feature_rows = [{f:0 for f in self.features}] * len(schedule)
+        for idx, (user, u_schedule) in enumerate(schedule.items()):
+            for f in self.features:
+                feature_rows[idx][f] = u_schedule[self.platform]["features"][f.name]
+                if f.name == "sleep_hours":
+                    feature_rows[idx][f] = 24 - sum(u_schedule[self.platform]["features"][f.name])
+
+        X = pd.DataFrame().from_records(feature_rows).to_numpy()
+        clf = fit_data[self.name]['classifier']
+        Y = clf.predict(X)
+
+        for idx, (user, u_schedule) in enumerate(schedule.items()):
+            u_schedule[self.platform]["ban"] = Y[idx]
+            if "triggered_rules" not in u_schedule[self.platform]:
+                u_schedule[self.platform]["triggered_rules"] = dict()
+            u_schedule[self.platform]["triggered_rules"][self.name] = 1 if Y[idx] > 0.5 else 0
 
     def fit(self, schedule: dict, start_time: int = 0, curr_time: int = None):
-        #training_df = pd.DataFrame.from_records()
-        # TODO: add classifier fit
+        # update feature values
+        self.feature_values(schedule, start_time, curr_time)
+
+        feature_rows = [{f:0 for f in self.features}] * len(schedule)
+        y_train = [0] * len(schedule)
+        for idx, (user, u_schedule) in enumerate(schedule.items()):
+            y_train[idx] = u_schedule[self.platform]["ban"]
+            for f in self.features:
+                feature_rows[idx][f] = u_schedule[self.platform]["features"][f.name]
+                if f.name == "sleep_hours":
+                    feature_rows[idx][f] = 24 - sum(u_schedule[self.platform]["features"][f.name])
+
+        x_train = pd.DataFrame().from_records(feature_rows)
+        clf = DecisionTreeClassifier()
+        x = x_train.to_numpy()
+        y = np.array(y_train)
+        clf.fit(x, y)
         fit_data = dict()
-        fit_data[self.name] = {}
+        fit_data[self.name] = {"classifier": clf}
         return fit_data
 
     def get_DAG(self) -> nx.MultiDiGraph:
@@ -595,9 +628,13 @@ class FeaturesRelationshipRule(Rule):
     def pred(self, fit_data: dict, schedule: dict, start_time: int = 0, curr_time: int = None):
         for feature in [self.features[0], self.outcome_feature]:
             feature.value(schedule, start_time, curr_time)
+        for user, u_schedule in schedule.items():
+            u_schedule[self.platform]["triggered_rules"][self.name] = 0
 
     def fit(self, schedule: dict, start_time: int = 0, curr_time: int = None):
-        return
+        fit_data = dict()
+        fit_data[self.name] = dict()
+        return fit_data
 
     def get_DAG(self) -> nx.MultiDiGraph:
         """

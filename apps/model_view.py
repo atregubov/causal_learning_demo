@@ -1,6 +1,7 @@
+from matplotlib import pyplot as plt
 from dash import dcc
 from dash import html
-import random
+from sklearn import tree
 import math
 from collections import defaultdict
 import plotly.graph_objects as go
@@ -28,7 +29,9 @@ def model_div(app, data, username, hidden=True):
     ####################################################################################################################
     # all rules table
     rules_data_table = [{"Name": rule.name,
-                         "Description": rule.rule_str,
+                         "Description": rule.rule_str + "\n\n >\n\n**Evaluation on \"S1 local (fit to historical data)\" thresholds:**"
+                                                        "\n- Precision: 0.85\n- Accuracy: 0.9"
+                                                        "\n- F1 score: 0.9\n- Recall: 0.9",
                          "Shared": rule.shared_by,
                          "Thresholds (fit data)": "**Global thresholds:**\n- S1 local (fit to historical data)"
                                                   "\n- shared by S2\n- shared by S3\n\n**Thresholds from policies:**"
@@ -103,6 +106,8 @@ def model_div(app, data, username, hidden=True):
             "headerName": "Description",
             "resizable": True,
             "cellStyle": {"wordBreak": "normal", "line-height": "normal"},
+            'cellDataType': 'text',
+            "cellRenderer": "markdown",
             "wrapText": True,
             "autoHeight": True,
             "autoWidth": True,
@@ -502,7 +507,7 @@ def model_div(app, data, username, hidden=True):
                                                                                                      figure=get_pred_triggered_rules_figure(
                                                                                                          data,
                                                                                                          username,
-                                                                                                         thresholds[0]),
+                                                                                                         thresholds[0])[0],
                                                                                                      style={'display': 'none'}
                                                                                                  ),
                                                                                                  ],
@@ -874,7 +879,8 @@ def get_triggered_rules_figure(data, username, fit_data_version):
 
 
 def get_pred_triggered_rules_figure(data, username, fit_data_version):
-    data[username]["editor"].pred(fit_data=(data[username]["thresholds"] | data["thresholds"])[fit_data_version],
+    fit_data = (data[username]["thresholds"] | data["thresholds"])[fit_data_version]
+    data[username]["editor"].pred(fit_data=fit_data,
                                   schedule=data[username]["schedule"], start_time=0, curr_time=0)
     rules = defaultdict(lambda: 0)
     bans_count = list()
@@ -884,6 +890,11 @@ def get_pred_triggered_rules_figure(data, username, fit_data_version):
             rules[r_triggered] += val  if val > 0 else 0
             banned = True if val > 0 else False
         bans_count.append(1 if banned else 0)
+
+    if "sleep_and_posts" in rules:
+        clf = fit_data["sleep_and_posts"]['classifier']
+        text_representation = tree.export_text(clf)
+        print(text_representation)
 
     figure = {'data': [{'y': [val for r_name, val in rules.items()],
                         'x': [r_name for r_name, val in rules.items()],
