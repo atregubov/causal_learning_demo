@@ -139,11 +139,11 @@ class Rule(ABC):
     """
 
     def __init__(self, name: str, rule_str: str, outcome_name: str, rules: list, depends_on: list,
-                 features: list, platform: str = "reddit", color: str = "black"):
+                 features: list, platform: str = "reddit", color: str = "black", shared_by="Me"):
         self.name = name
         self.platform = platform
         self.rule_str = rule_str
-        self.local = True
+        self.shared_by = shared_by
 
         self.outcome_name = outcome_name
         self.rules = rules
@@ -192,8 +192,10 @@ class AggregateRule(Rule):
                                         [[list_of_actions] | 1_0_-1_ban | rule_name         | feature_name ]
     """
 
-    def __init__(self, name: str, rule_str: str, outcome_name: str, rules: list, platform="reddit", color="black"):
-        super().__init__(name, rule_str, outcome_name, rules, [], [], platform, color)
+    def __init__(self, name: str, rule_str: str, outcome_name: str, rules: list, platform="reddit", color="black", shared_by="Me"):
+        super().__init__(name, rule_str, outcome_name, rules, [], [], platform, color, shared_by)
+        for rule in self.rules:
+            rule.shared_by = shared_by
 
     def get_DAG(self) -> nx.MultiDiGraph:
         """
@@ -218,7 +220,7 @@ class AggregateRule(Rule):
             rule.pred(fit_data, schedule, start_time, curr_time)
 
     def fit(self, schedule: dict, start_time: int = 0, curr_time: int = None):
-        f"""
+        """
         Returns fit_data (e.g. thresholds, weights, and other rule parameters) to fit observations.
         fit_data is a dictionary {"rule_name": {"fit_data"}}
         The schedule must have ban labels in schedule[user_id][self.platform]["ban"]
@@ -238,8 +240,9 @@ class BasicRule(Rule):
                                         [[list_of_actions] | 1_0_-1_ban | rule_name         | feature_name ]
     """
 
-    def __init__(self, name: str, rule_str: str, features: list, outcome_name: str = "ban", platform="reddit", color=None):
-        super().__init__(name, rule_str, outcome_name, [], [], features, platform)
+    def __init__(self, name: str, rule_str: str, features: list, outcome_name: str = "ban", platform="reddit",
+                 color=None, shared_by="Me"):
+        super().__init__(name, rule_str, outcome_name, [], [], features, platform, shared_by)
         if color is not None:
             self.color = color
         elif len(self.features) == 1:

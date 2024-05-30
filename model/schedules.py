@@ -1,7 +1,7 @@
 import random
 import pydot
 import networkx as nx
-from model.rules import Rule
+from model.rules import *
 
 
 def to_nx_DAG(d_model, verbose=False):
@@ -131,4 +131,20 @@ def generate_historical_data(schedule: dict, thresholds: dict, policy:Rule) -> d
     #     u_schedule[policy.platform]["triggered_rules"] = dict()
 
     return schedule
+
+
+def get_local_data_fit_for_all_rules(schedule: dict) -> dict:
+    RULES = {r.name: r for r in [SleepHoursRule(),
+                                 TotalNumberOfPostsRule(),
+                                 NarrativeRatioRule(narrative="baseball"),
+                                 TotalLinesOfPostsRule(),
+                                 NarrativeNumberOfPostsRule(narrative="baseball"),
+                                 NarrativeLinesOfPostsRule(narrative="baseball"),
+                                 ]}
+    for feature in FEATURES.values():
+        feature.value(schedule, 0, 0)
+    fit_data = dict()
+    for rule in RULES.values():
+        fit_data[rule.name] = rule.fit(schedule)[rule.name]
+    return fit_data
 

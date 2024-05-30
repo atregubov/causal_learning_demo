@@ -7,6 +7,7 @@ import plotly.graph_objects as go
 import networkx as nx
 import pandas as pd
 import dash_ag_grid as dag
+from sklearn.metrics import precision_recall_fscore_support, accuracy_score
 from dash import Dash, Input, Output, html, dcc, callback, State, dash_table
 
 import dash_bootstrap_components as dbc
@@ -28,7 +29,11 @@ def model_div(app, data, username, hidden=True):
     # all rules table
     rules_data_table = [{"Name": rule.name,
                          "Description": rule.rule_str,
-                         "Shared": not(rule.local),
+                         "Shared": rule.shared_by,
+                         "Thresholds (fit data)": "**Global thresholds:**\n- S1 local (fit to historical data)"
+                                                  "\n- shared by S2\n- shared by S3\n\n**Thresholds from policies:**"
+                                                  "\n- Local: S1: number of posts and sleep hours rule"
+                                                  "\n- Shared (from site 2): sleep hours bab policy",
                          "graph": rule.get_DAG(),
                          "Add to editor": "Add to \npolicy editor"
                          }
@@ -47,7 +52,7 @@ def model_div(app, data, username, hidden=True):
                         for rule in data[username]["local"][0].rules]
     local_rules_df = pd.DataFrame.from_records(local_rules_data_table)
     for i, r in local_rules_df.iterrows():
-        fig = get_DAG_fig(r["graph"], show_edge_labels=False, node_size=40, label_position="bottom center")
+        fig = get_DAG_fig(r["graph"], show_edge_labels=False, node_size=40, label_position="top center")
         local_rules_df.at[i, "graph"] = fig
 
     # shared policy view table
@@ -59,21 +64,24 @@ def model_div(app, data, username, hidden=True):
                                for rule in data["shared"][0].rules]
     shared_rules_df = pd.DataFrame.from_records(shared_rules_data_table)
     for i, r in shared_rules_df.iterrows():
-        fig = get_DAG_fig(r["graph"], show_edge_labels=False, node_size=40, label_position="bottom center")
+        fig = get_DAG_fig(r["graph"], show_edge_labels=False, node_size=40, label_position="top center")
         shared_rules_df.at[i, "graph"] = fig
 
     # policy editor panel
     def get_editor_rules(data_):
         editor_rules_data_table = [{"Name": rule.name,
                                     "Description": rule.rule_str,
-                                    "Thresholds (fit data)": ["Local fit data"],
+                                    "Thresholds (fit data)": "**Global thresholds:**\n- S1 local (fit to historical data)"
+                                                  "\n- shared by S2\n- shared by S3\n\n**Thresholds from policies:**"
+                                                  "\n- ***Local: S1: number of posts and sleep hours rule (current)\****"
+                                                  "\n- Shared (from site 2): sleep hours bab policy",
                                     "graph": rule.get_DAG(),
                                     "Remove": "Remove",
                                     }
                                    for rule in data_[username]["editor"].rules]
         editor_rules_df = pd.DataFrame.from_records(editor_rules_data_table)
         for i, r in editor_rules_df.iterrows():
-            fig = get_DAG_fig(r["graph"], show_edge_labels=False, node_size=40, label_position="bottom center")
+            fig = get_DAG_fig(r["graph"], show_edge_labels=False, node_size=40, label_position="top center")
             editor_rules_df.at[i, "graph"] = fig
 
         return editor_rules_df.to_dict("records")
@@ -88,30 +96,44 @@ def model_div(app, data, username, hidden=True):
             "resizable": True,
             "cellStyle": {"wordBreak": "normal"},
             "wrapText": True,
-            # "autoHeight": True,
+            "autoHeight": True,
         },
         {
             "field": "Description",
             "headerName": "Description",
             "resizable": True,
-            "cellStyle": {"wordBreak": "normal"},
+            "cellStyle": {"wordBreak": "normal", "line-height": "normal"},
             "wrapText": True,
-            # "autoHeight": True,
-            "minWidth": 200,
-            "maxWidth": 600,
+            "autoHeight": True,
+            "autoWidth": True,
+            "minWidth": 400,
         },
         {
             "field": "Shared",
-            "headerName": "Shared",
-            "maxWidth": 100,
-            "minWidth": 70,
+            "headerName": "Shared by",
+            "resizable": True,
+            "maxWidth": 150,
+            "minWidth": 90,
+        },
+        {
+            "field": "Thresholds (fit data)",
+            "headerName": "Available thresholds",
+            "resizable": True,
+            "cellStyle": {"wordBreak": "normal", "line-height": "normal"},
+            'cellDataType': 'text',
+            "cellRenderer": "markdown",
+            "wrapText": True,
+            "autoHeight": True,
+            "autoWidth": True,
+            "minWidth": 300,
         },
         {
             "field": "graph",
             "cellRenderer": "DCC_GraphClickData",
             "headerName": "DAG",
-            "maxWidth": 900,
             "minWidth": 500,
+            "autoWidth": True,
+            "resizable": True,
         },
         {
             "field": "Add to editor",
@@ -119,7 +141,7 @@ def model_div(app, data, username, hidden=True):
             "cellRendererParams": {"color": "success"},
             "minWidth": 200,
             "maxWidth": 250,
-
+            "resizable": True,
         },
     ]
 
@@ -169,19 +191,23 @@ def model_div(app, data, username, hidden=True):
             "autoHeight": True,
         },
         {
-             "field": "Thresholds (fit data)",
-             "headerName": "Thresholds (fit data)",
-             "resizable": True,
-             "cellStyle": {"wordBreak": "normal"},
-             "wrapText": True,
-             "autoHeight": True,
+            "field": "Thresholds (fit data)",
+            "headerName": "Thresholds (fit data)",
+            "resizable": True,
+            "cellStyle": {"wordBreak": "normal", "line-height": "normal"},
+            'cellDataType': 'text',
+            "cellRenderer": "markdown",
+            "wrapText": True,
+            "autoHeight": True,
+            "autoWidth": True,
+            "minWidth": 100,
          },
         {
             "field": "graph",
             "cellRenderer": "DCC_GraphClickData",
             "headerName": "DAG",
             "maxWidth": 900,
-            "minWidth": 500,
+            "minWidth": 400,
         },
         {
             "field": "Remove",
@@ -198,7 +224,9 @@ def model_div(app, data, username, hidden=True):
             "field": "Metric",
             "resizable": True,
             "cellStyle": {"wordBreak": "normal"},
-            "wrapText": True,
+            "minWidth": 300,
+            # "wrapText": True,
+            # "autoWidth": True,
             "autoHeight": True,
         },
         {
@@ -206,7 +234,7 @@ def model_div(app, data, username, hidden=True):
             "headerName": "Value",
             "resizable": True,
             "cellStyle": {"wordBreak": "normal"},
-            "wrapText": True,
+            # "wrapText": True,
             "autoHeight": True,
         }]
     ####################################################################################################################
@@ -220,7 +248,7 @@ def model_div(app, data, username, hidden=True):
                 columnSize="sizeToFit",
                 columnDefs=rules_table_columns,
                 defaultColDef={"filter": True, "minWidth": 60},
-                dashGridOptions={"rowHeight": 280, "animateRows": False},
+                dashGridOptions={"rowHeight": 150, "animateRows": False},
                 style={"height": 800, 'display': 'inline-block', 'resize': 'both', 'overflow': 'auto'},
 
             ),
@@ -234,7 +262,7 @@ def model_div(app, data, username, hidden=True):
                 columnSize="sizeToFit",
                 columnDefs=short_set_columns,
                 defaultColDef={"filter": True, "minWidth": 60},
-                dashGridOptions={"rowHeight": 240, "animateRows": False},
+                dashGridOptions={"rowHeight": 150, "animateRows": False},
                 style={"height": 400, 'display': 'inline-block', 'resize': 'both', 'overflow': 'auto'}
             ),
         ]
@@ -247,7 +275,7 @@ def model_div(app, data, username, hidden=True):
                 columnSize="sizeToFit",
                 columnDefs=short_set_columns,
                 defaultColDef={"filter": True, "minWidth": 60},
-                dashGridOptions={"rowHeight": 240, "animateRows": False},
+                dashGridOptions={"rowHeight": 150, "animateRows": False},
                 style={"height": 400, 'display': 'inline-block', 'resize': 'both', 'overflow': 'auto'}
             ),
         ]
@@ -260,13 +288,11 @@ def model_div(app, data, username, hidden=True):
                 columnSize="sizeToFit",
                 columnDefs=editor_columns,
                 defaultColDef={"filter": True, "minWidth": 60},
-                dashGridOptions={"rowHeight": 240, "animateRows": False},
+                dashGridOptions={"rowHeight": 150, "animateRows": False},
                 style={"height": 400, 'display': 'inline-block', 'resize': 'both', 'overflow': 'auto'}
             ),
         ]
     )
-
-    df = pd.read_csv('https://git.io/Juf1t')
 
     thresholds = [t for t in data[username]["thresholds"].keys()]
     thresholds.extend(list(data["thresholds"].keys()))
@@ -339,12 +365,12 @@ def model_div(app, data, username, hidden=True):
                                         html.Div(id="all_rules_div",
                                                  children=[html.H2("Rules"),
                                                            html.Br(),
-                                                           html.Button(
-                                                               'Update local thresholds (fit to historical data)',
-                                                               id='local_fit_btn',
-                                                               n_clicks=0,
-                                                               style={'padding': '10px 10px 10px 10px'}),
-                                                           html.Button('Share local thresholds',
+                                                           # html.Button(
+                                                           #     'Update local thresholds (fit to historical data)',
+                                                           #     id='local_fit_btn',
+                                                           #     n_clicks=0,
+                                                           #     style={'padding': '10px 10px 10px 10px'}),
+                                                           html.Button('Share local thresholds (for all rules)',
                                                                        id='share_thresholds_btn',
                                                                        n_clicks=0,
                                                                        style={'padding': '10px 10px 10px 10px'}),
@@ -374,7 +400,7 @@ def model_div(app, data, username, hidden=True):
                                                                                           n_clicks=0,
                                                                                           style={
                                                                                               'padding': '10px 10px 10px 10px'}),
-                                                                              html.Button('Share DAG',
+                                                                              html.Button('Share this policy',
                                                                                           id='share_dag_btn',
                                                                                           n_clicks=0,
                                                                                           style={
@@ -411,62 +437,78 @@ def model_div(app, data, username, hidden=True):
                                                                            'display': 'inline-block'}
                                                                     ),
                                                            html.Div(id="evaluation_div_id",
-                                                              children=[html.H2('Evaluation'),
-                                                                        html.Div(id="evaluation_inner_div",
-                                                                                 children=[
-                                                                                            html.I('Choose thresholds: '),
-                                                                                            html.Br(),
-                                                                                            dcc.Dropdown(thresholds,
-                                                                                                         thresholds[0],
-                                                                                                         id='editor_fit_data_dropdown',
-                                                                                                         style={'width': '50%',
-                                                                                                                'padding': '10px 10px 0px 0px',
-                                                                                                                'display': 'inline-block'}
-                                                                                                         ),
-                                                                                            html.Br(),
-                                                                                            html.Button('Evaluate',
-                                                                                                        id='evaluate_btn',
-                                                                                                        n_clicks=0,
-                                                                                                        style={
-                                                                                                            'padding': '10px 10px 10px 10px',
-                                                                                                            'display': 'inline-block'}),
-                                                                                            html.Br(),
-                                                                                            dag.AgGrid(
-                                                                                                id="eval_table_id",
-                                                                                                rowData=[
-                                                                                                    {
-                                                                                                        "Metric": "Total number of predicted bans on historical data",
-                                                                                                        "Value": ""},
-                                                                                                    {
-                                                                                                        "Metric": "Total number of actual bans (historical data)",
-                                                                                                        "Value": ""},
-                                                                                                    {
-                                                                                                        "Metric": "Precision",
-                                                                                                        "Value": ""},
-                                                                                                    {
-                                                                                                        "Metric": "Accuracy",
-                                                                                                        "Value": ""},
-                                                                                                    {
-                                                                                                        "Metric": "F1 score",
-                                                                                                        "Value": ""},
-                                                                                                    {
-                                                                                                        "Metric": "Recall",
-                                                                                                        "Value": ""}
-                                                                                                ],
-                                                                                                columnSize="sizeToFit",
-                                                                                                columnDefs=eval_metrics_columns,
-                                                                                                defaultColDef={"filter": False,
-                                                                                                               "minWidth": 60},
-                                                                                                style={"height": "200px",
-                                                                                                       'width': '50%',
-                                                                                                       'display': 'inline-block',
-                                                                                                       'overflow': 'auto'},
-                                                                                            ),
-                                                                                            html.Br(),
-                                                                                     ],
-                                                                                 style={'width': '100%',
-                                                                                        'padding': '0px 0px 0px 0px',
-                                                                                        'display': 'inline-block'}
+                                                                    children=[html.H2('Evaluation'),
+                                                                              html.Div(id="evaluation_pred",
+                                                                                       children=[html.Div(id="evaluation_inner_div",
+                                                                                                          children=[
+                                                                                                                      # html.I('Choose thresholds: '),
+                                                                                                                      # html.Br(),
+                                                                                                                      dcc.Dropdown(
+                                                                                                                          thresholds,
+                                                                                                                          thresholds[0],
+                                                                                                                          id='editor_fit_data_dropdown',
+                                                                                                                          style={
+                                                                                                                              'width': '100%',
+                                                                                                                              'padding': '10px 10px 0px 0px',
+                                                                                                                              'display': 'none'}
+                                                                                                                          ),
+                                                                                                                      # html.Br(),
+                                                                                                                      html.Button(
+                                                                                                                          'Evaluate',
+                                                                                                                          id='evaluate_btn',
+                                                                                                                          n_clicks=0,
+                                                                                                                          style={
+                                                                                                                              'padding': '10px 10px 10px 10px',
+                                                                                                                              'display': 'inline-block'}),
+                                                                                                                      html.Br(),
+                                                                                                                      dag.AgGrid(id="eval_table_id",
+                                                                                                                                 rowData=[{
+                                                                                                                                              "Metric": "Total number of predicted bans on historical data",
+                                                                                                                                              "Value": ""},
+                                                                                                                                          {
+                                                                                                                                              "Metric": "Total number of actual bans (historical data)",
+                                                                                                                                              "Value": ""},
+                                                                                                                                          {
+                                                                                                                                              "Metric": "Precision",
+                                                                                                                                              "Value": ""},
+                                                                                                                                          {
+                                                                                                                                              "Metric": "Accuracy",
+                                                                                                                                              "Value": ""},
+                                                                                                                                          {
+                                                                                                                                              "Metric": "F1 score",
+                                                                                                                                              "Value": ""},
+                                                                                                                                          {
+                                                                                                                                              "Metric": "Recall",
+                                                                                                                                              "Value": ""}
+                                                                                                                                 ],
+                                                                                                                                 columnSize="sizeToFit",
+                                                                                                                                 columnDefs=eval_metrics_columns,
+                                                                                                                                 defaultColDef={
+                                                                                                                                      "filter": False,
+                                                                                                                                      "minWidth": 60},
+                                                                                                                                 style={
+                                                                                                                                      "height": "400px",
+                                                                                                                                      'display': 'inline-block',
+                                                                                                                                      'overflow': 'auto'},
+                                                                                                                      ),
+                                                                                                                      html.Br(),
+                                                                                                                    ],
+                                                                                                          style={'width': '100%',
+                                                                                                                 'padding': '0px 0px 0px 0px',
+                                                                                                                 'display': 'inline-block'}
+                                                                                                          ),
+                                                                                                 dcc.Graph(
+                                                                                                     id="evaluation_figure_pred_id",
+                                                                                                     figure=get_pred_triggered_rules_figure(
+                                                                                                         data,
+                                                                                                         username,
+                                                                                                         thresholds[0]),
+                                                                                                     style={'display': 'none'}
+                                                                                                 ),
+                                                                                                 ],
+                                                                                       style={'width': '40%',
+                                                                                                'padding': '0px 0px 0px 0px',
+                                                                                                'display': 'inline-block'}
                                                                                  ),
                                                                         html.Div(id="evaluation_hist",
                                                                                  children=[
@@ -475,27 +517,14 @@ def model_div(app, data, username, hidden=True):
                                                                                          figure=get_triggered_rules_figure(
                                                                                              data,
                                                                                              username,
-                                                                                             thresholds[0]))
-                                                                                 ],
-                                                                                 style={'width': '50%',
-                                                                                        'padding': '0px 0px 0px 0px',
-                                                                                        'display': 'inline-block'}
-                                                                                 ),
-                                                                        html.Div(id="evaluation_pred",
-                                                                                 children=[
-                                                                                     dcc.Graph(
-                                                                                         id="evaluation_figure_pred_id",
-                                                                                         figure=get_pred_triggered_rules_figure(
-                                                                                             data,
-                                                                                             username,
                                                                                              thresholds[0])),
                                                                                  ],
-                                                                                 style={'width': '50%',
+                                                                                 style={'width': '60%',
                                                                                         'padding': '0px 0px 0px 0px',
                                                                                         'display': 'inline-block'}
                                                                                  ),
                                                                         ],
-                                                              style={'width': '100%',
+                                                                    style={'width': '100%',
                                                                      'padding': '0px 0px 0px 0px',
                                                                      'display': 'none'}
 
@@ -525,24 +554,27 @@ def model_div(app, data, username, hidden=True):
         fig, bans_count, bans_count_gt = get_triggered_rules_figure(data, username, fit_Data)
         fig_pred, _ = get_pred_triggered_rules_figure(data, username, fit_Data)
 
+        precision, recall, fscore, support = precision_recall_fscore_support(bans_count_gt, bans_count, average="macro")
+        accuracy = accuracy_score(bans_count_gt, bans_count)
+
         metrics = [{
             "Metric": "Total number of predicted bans on historical data",
-            "Value": bans_count
+            "Value": sum(bans_count)
         },{
             "Metric": "Total number of actual bans (historical data)",
-            "Value": bans_count_gt
+            "Value": sum(bans_count_gt)
         },{
             "Metric": "Precision",
-            "Value": ""
+            "Value": round(precision, 2)
         },{
             "Metric": "Accuracy",
-            "Value": ""
+            "Value": round(accuracy, 2)
         },{
             "Metric": "F1 score",
-            "Value": ""
+            "Value": round(fscore, 2)
         },{
             "Metric": "Recall",
-            "Value": ""
+            "Value": round(recall, 2)
         }]
 
         return msg, style,  fig, fig_pred, metrics
@@ -668,10 +700,17 @@ def hierarchy_pos(G, root, width=1., vert_gap = 0.2, vert_loc = 0, xcenter = 0.5
     return pos
 
 
-def get_DAG_fig(G, show_edge_labels=True, node_size=60, label_position="bottom center"):
+def get_DAG_fig(G, show_edge_labels=True, node_size=60, label_position="top center"):
     lay = nx.layout.circular_layout(G)
     if len(list(G.nodes)) > 2 and "ban" in G.nodes:
         lay = hierarchy_pos(G, "ban")
+    if len(list(G.nodes)) == 2 and "ban" in G.nodes:
+        second_node = [n for n in G.nodes if n != "ban"][0]
+        lay = {"ban": [0, 0], second_node: [1, 0]}
+    if len(list(G.nodes)) == 2 and "ban" not in G.nodes:
+        first_node = [n for n in G.nodes][0]
+        second_node = [n for n in G.nodes][1]
+        lay = {first_node: [0, 0], second_node: [1, 0]}
     position = {node: [lay[node][0], lay[node][1]] for node in G.nodes}
 
     edge_x = []
@@ -701,13 +740,34 @@ def get_DAG_fig(G, show_edge_labels=True, node_size=60, label_position="bottom c
         x=node_x, y=node_y,
         mode='markers+text',
         hoverinfo='text',
-        textposition=label_position,
+        textposition=label_position if len(position) <= 2 else "top center",
         marker=dict(
             size=node_size,
             line_width=2))
 
     node_adjacencies = []
-    node_text = [str(n)[:20]+"..." if len(str(n)) >24 else str(n) for n in G.nodes]
+    node_text = [str(n) for n in G.nodes]
+    for idx in range(len(node_text)):
+        if len(node_text[idx]) > 13:
+            words = node_text[idx].split("_")
+            if len(words) == 1:
+                len_ = len(node_text[idx])
+                node_text[idx] = node_text[idx][:len_//2] + "<br>" + node_text[idx][len_//2:]
+            else:
+                len_ = len(words)
+                first_line = words[:len_//2]
+                second_line = words[len_ // 2:]
+                to_contatinate = list()
+                for w in first_line:
+                    to_contatinate.append(w)
+                    to_contatinate.append("_")
+                to_contatinate.append("<br>")
+                for w in second_line:
+                    to_contatinate.append(w)
+                    to_contatinate.append("_")
+                del to_contatinate[-1]
+                node_text[idx] = "".join(to_contatinate)
+
     for node, adjacencies in enumerate(G.adjacency()):
         node_adjacencies.append(len(adjacencies[1]))
 
@@ -779,25 +839,25 @@ def get_triggered_rules_figure(data, username, fit_data_version):
     historical_schedule = copy_schedule(data[username]["historical_schedule"], platform)
     data[username]["editor"].pred(fit_data=(data[username]["thresholds"] | data["thresholds"])[fit_data_version],
                                   schedule=historical_schedule, start_time=0, curr_time=0)
-    bans_count = 0
+    bans_count = list()
     hist_data_triggered_rules = defaultdict(lambda: 0)
     for u_id, u_data in historical_schedule.items():
         banned = False
         for r_triggered, val in u_data[platform]["triggered_rules"].items():
-            hist_data_triggered_rules[r_triggered] += val
+            hist_data_triggered_rules[r_triggered] += val if val > 0 else 0
             if val > 0:
                 banned = True
-        bans_count += 1 if banned else 0
+        bans_count.append(1 if banned else 0)
 
-    bans_count_gt = 0
+    bans_count_gt = list()
     hist_data_triggered_rules_gt = defaultdict(lambda: 0)
     for u_id, u_data in data[username]["historical_schedule"].items():
         banned = False
         for r_triggered, val in u_data[platform]["triggered_rules"].items():
-            hist_data_triggered_rules_gt[r_triggered] += val
+            hist_data_triggered_rules_gt[r_triggered] += val if val > 0 else 0
             if val > 0:
                 banned = True
-        bans_count_gt += 1 if banned else 0
+        bans_count_gt.append(1 if banned else 0)
 
     figure = {'data': [{'y': [val for r_name, val in hist_data_triggered_rules.items()],
                         'x': [r_name for r_name, val in hist_data_triggered_rules.items()],
@@ -817,19 +877,19 @@ def get_pred_triggered_rules_figure(data, username, fit_data_version):
     data[username]["editor"].pred(fit_data=(data[username]["thresholds"] | data["thresholds"])[fit_data_version],
                                   schedule=data[username]["schedule"], start_time=0, curr_time=0)
     rules = defaultdict(lambda: 0)
-    bans_count = 0
+    bans_count = list()
     for u_id, u_data in data[username]["schedule"].items():
         banned = False
         for r_triggered, val in u_data[data[username]["editor"].platform]["triggered_rules"].items():
-            rules[r_triggered] += val
+            rules[r_triggered] += val  if val > 0 else 0
             banned = True if val > 0 else False
-        bans_count += 1 if banned else 0
+        bans_count.append(1 if banned else 0)
 
     figure = {'data': [{'y': [val for r_name, val in rules.items()],
                         'x': [r_name for r_name, val in rules.items()],
                         'type': 'bar', 'name': f"Expected bans"}],
               'layout': {
-                  'title': f'Number of times each rule is predicted to trigger\n({bans_count} total bans predicted )'}
+                  'title': f'Number of times each rule is predicted to trigger\n({sum(bans_count)} total bans predicted )'}
               }
     return figure, bans_count
 

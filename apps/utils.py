@@ -1,8 +1,7 @@
 import json
 from pathlib import Path
-import pandas as pd
-from model.rules import *
 from model.schedules import *
+from initial_state import create_initial_state_data
 
 
 def load_users(users_path: Path):
@@ -24,115 +23,15 @@ def load_users(users_path: Path):
 
 def load_data(data_path: Path):
     """
-    Load data in DASH simulation format.
+    Load initial state of the models/policies, thresholds for all sites in the CCD Demo.
     :param data_path: path to data file
     :return: list of events
 
     """
+    # todo: need to update load_json_into_df() to be able to load initial state json.
     #data = load_json_into_df(data_path, True, False)
-
-    gt_historical_thresholds = get_random_thresholds(narrative="baseball")
-    data = {"s1": {"rules": [r for r in RULES.values()],
-                   "local": [
-                             # AggregateRule("S1: Local sleep hours and number of posts policy", "Trigger ban if constituent rules are triggered.",
-                             #               "ban", [
-                             #                       # SleepHoursRule(),
-                             #                       # TotalNumberOfPostsRule(),
-                             #                       SleepAndPostsRule(),
-                             #                       NarrativeRatioRule()]),
-                             AggregateRule("S1: number of posts policy", "number_of_posts > 100 -> ban",
-                                     "ban", [TotalNumberOfPostsRule()]),
-                             AggregateRule("S1: Local sleep policy", "Trigger ban if constituent rule triggered",
-                                    "ban", [SleepHoursRule()]),
-                             ],
-                   "schedule": generate_site_schedule(site_idx=0),
-                   "historical_schedule": generate_historical_data(schedule=generate_site_schedule(site_idx=0),
-                                                                   thresholds=gt_historical_thresholds,
-                                                                   policy=AggregateRule("S1: number of posts policy",
-                                                                                        "number_of_posts > 100 -> ban",
-                                                                                        "ban",
-                                                                                        [TotalNumberOfPostsRule(),
-                                                                                         SleepHoursRule()])),
-                   "thresholds": {"local:S1 initial": get_random_thresholds("baseball"),
-                                  "local:S1 historical data fit": get_random_thresholds("baseball") },
-                   "editor": AggregateRule("S1+S1: number of posts and sleep hours policy", "number_of_posts > <threshold> -> ban "
-                                                                         "\nor number_of_sleep_hours < <threshold> -> ban",
-                                                              "ban", [TotalLinesOfPostsRule(),
-                                                                                         SleepHoursRule()]),
-                   # "editor": AggregateRule("Shared policy on number of posts", "Trigger ban if constituent rule triggered",
-                   #                   "ban",
-                   #                   [#SleepHoursRule(),
-                   #                    #TotalNumberOfPostsRule(),
-                   #                    NarrativeRatioRule(narrative="baseball"),
-                   #                    SleepAndPostsRule(),
-                   #                    TotalLinesOfPostsRule(),
-                   #                    TotalNumberOfPostsCauseSleepHoursRule(),
-                   #                    TotalNumberOfLinesCauseSleepHoursRule()]
-                   #                   )
-                   },
-            "s2": {"rules": [r for r in RULES.values()],
-                   "local": [AggregateRule("S2: sleep hours rule", "If number of sleep hours < 9 -> ban",
-                                           "ban", [SleepHoursRule()]),
-                             AggregateRule("S2: number of posts policy on baseball", "number of posts on baseball > 50 -> ban",
-                                           "ban", [NarrativeNumberOfPostsRule(narrative="baseball")]),
-                             AggregateRule("S2: Local narrative and number of posts policy", "Trigger ban if constituent rules are triggered.",
-                                           "ban", [TotalNumberOfPostsRule(),
-                                                   NarrativeRatioRule()]),
-                             ],
-                   "schedule": generate_site_schedule(site_idx=1),
-                   "historical_schedule": generate_historical_data(schedule=generate_site_schedule(site_idx=1),
-                                                                   thresholds=gt_historical_thresholds,
-                                                                   policy=AggregateRule("S1: number of posts policy",
-                                                                                        "number_of_posts > 100 -> ban",
-                                                                                        "ban",
-                                                                                        [TotalNumberOfPostsRule(),
-                                                                                         SleepHoursRule()])),
-                   "thresholds": {"local:S2 initial": get_random_thresholds("baseball"),
-                                  "local:S2 historical data fit": get_random_thresholds("baseball")},
-                   # "editor": AggregateRule("S2: number of posts policy", "number_of_posts > 100 -> ban",
-                   #                         "ban", [TotalNumberOfPostsRule()]),
-                   "editor": AggregateRule("S2: number of posts policy  on baseball", "number of posts on baseball > 50 -> ban",
-                                                              "ban", [NarrativeNumberOfPostsRule(narrative="baseball")])
-                   },
-            "s3": {"rules": [r for r in RULES.values()],
-                   "local": [AggregateRule("S3: Local sleep hours, narrative and number of lines policy", "Trigger ban if constituent rules are triggered.",
-                                           "ban", [SleepHoursRule(),
-                                                   TotalLinesOfPostsRule(),
-                                                   NarrativeRatioRule(),
-                                                   TotalNumberOfLinesCauseSleepHoursRule()]),
-                             ],
-                   "schedule": generate_site_schedule(site_idx=2),
-                   "historical_schedule": generate_historical_data(schedule=generate_site_schedule(site_idx=2),
-                                                                   thresholds=gt_historical_thresholds,
-                                                                   policy=AggregateRule("S1: number of posts policy",
-                                                                                        "number_of_posts > 100 -> ban",
-                                                                                        "ban",
-                                                                                        [TotalNumberOfPostsRule(),
-                                                                                         SleepHoursRule()])),
-                   "thresholds": {"local:S3 initial": get_random_thresholds("baseball"),
-                                  "local:S3 historical data fit": get_random_thresholds("baseball")},
-                   "editor": AggregateRule("New policy", "Trigger ban if constituent rule triggered",
-                                           "ban", [SleepHoursRule()])
-                   },
-            "shared": [
-                        AggregateRule("Shared (from site 2): sleep hours bab policy", "If number of sleep hours < 9 -> ban",
-                              "ban", [SleepHoursRule()]),
-                        AggregateRule("Shared (from site 2): Policy on number of posts", "Trigger ban if constituent rule triggered",
-                                     "ban",
-                                     [SleepHoursRule(),
-                                      TotalNumberOfPostsRule(),
-                                      NarrativeRatioRule(narrative="baseball"),
-                                      TotalLinesOfPostsRule(),
-                                      TotalNumberOfPostsCauseSleepHoursRule(),
-                                      TotalNumberOfLinesCauseSleepHoursRule()],
-                                     ),
-                AggregateRule("Shared (from site 1): number of posts policy", "number_of_posts > 100 -> ban",
-                              "ban", [TotalNumberOfPostsRule()]),
-            ],
-            "thresholds": {"shared:S1": get_random_thresholds("baseball"),
-                           "shared:S2": get_random_thresholds("baseball"),
-                           "shared:S3": get_random_thresholds("baseball")},
-            }
+    # tmp: load initial state statically
+    data = create_initial_state_data()
     return data
 
 
