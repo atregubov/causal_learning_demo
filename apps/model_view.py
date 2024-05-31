@@ -1,6 +1,7 @@
 from matplotlib import pyplot as plt
 from dash import dcc
 from dash import html
+import random
 from sklearn import tree
 import math
 from collections import defaultdict
@@ -30,9 +31,9 @@ def model_div(app, data, username, hidden=True):
     # all rules table
     rules_data_table = [{"Name": rule.name,
                          "Description": rule.rule_str + "\n\n >\n\n**Evaluation on \"S1 local (fit to historical data)\" thresholds:**"
-                                                        "\n- Precision: 0.85\n- Accuracy: 0.9"
-                                                        "\n- F1 score: 0.9\n- Recall: 0.9",
-                         "Shared": rule.shared_by,
+                                                        f"\n- Precision: {random.uniform(0.06, 0.96):.2f}\n- Accuracy: {random.uniform(0.06, 0.96):.2f}"
+                                                        f"\n- F1 score: {random.uniform(0.05, 0.96):.2f}\n- Recall: {random.uniform(0.03, 0.96):.2f}",
+                         "Shared": rule.shared_by if rule.name != "sleep_hours" else "Me, S2, S3",
                          "Thresholds (fit data)": "**Global thresholds:**\n- S1 local (fit to historical data)"
                                                   "\n- shared by S2\n- shared by S3\n\n**Thresholds from policies:**"
                                                   "\n- Local: S1: number of posts and sleep hours rule"
@@ -48,9 +49,10 @@ def model_div(app, data, username, hidden=True):
 
     # local policy view table
     local_rules_data_table = [{"Name": rule.name,
-                         "Description": rule.rule_str,
-                         "graph": rule.get_DAG(),
-                         "Add to editor": "Add to \npolicy editor"
+                               "Description": rule.rule_str,
+                               "graph": rule.get_DAG(),
+                               "Thresholds (fit data)": "***Local: S1: number of posts and sleep hours rule***" if rule.name != "sleep_and_posts" else "**None**",
+                               "Remove": "Remove",
                          }
                         for rule in data[username]["local"][0].rules]
     local_rules_df = pd.DataFrame.from_records(local_rules_data_table)
@@ -62,7 +64,8 @@ def model_div(app, data, username, hidden=True):
     shared_rules_data_table = [{"Name": rule.name,
                                 "Description": rule.rule_str,
                                 "graph": rule.get_DAG(),
-                                "Add to editor": "Add to \npolicy editor"
+                                "Thresholds (fit data)": "**Local: S1: number of posts and sleep hours rule**" if rule.name != "sleep_and_posts" else "**None**",
+                                "Copy": "<-Copy",
                                 }
                                for rule in data["shared"][0].rules]
     shared_rules_df = pd.DataFrame.from_records(shared_rules_data_table)
@@ -151,7 +154,14 @@ def model_div(app, data, username, hidden=True):
     ]
 
     # shared and local policy view table uses short_set_columns
-    short_set_columns = [
+    shared_rules_columns = [
+        {
+            "field": "Copy",
+            "headerName": "Copy to local",
+            "cellRenderer": "DBC_Button_Simple",
+            "cellRendererParams": {"color": "success"},
+            "minWidth": 70,
+        },
         {
             "field": "Name",
             "resizable": True,
@@ -164,18 +174,83 @@ def model_div(app, data, username, hidden=True):
             "headerName": "Description",
             "resizable": True,
             "cellStyle": {"wordBreak": "normal", "line-height": "normal"},
+            'cellDataType': 'text',
+            "cellRenderer": "markdown",
             "wrapText": True,
             "autoHeight": True,
+            "autoWidth": True,
+            "minWidth": 200,
         },
         {
             "field": "graph",
             "cellRenderer": "DCC_GraphClickData",
             "headerName": "DAG",
             "maxWidth": 900,
-            "minWidth": 500,
+            "minWidth": 300,
             # "autoHeight": True,
             # "autoWidth": True,
-        }
+        },
+        {
+            "field": "Thresholds (fit data)",
+            "headerName": "Threshold (fit data)",
+            "resizable": True,
+            "cellStyle": {"wordBreak": "normal", "line-height": "normal"},
+            'cellDataType': 'text',
+            "cellRenderer": "markdown",
+            "wrapText": True,
+            "autoHeight": True,
+            "autoWidth": True,
+            "minWidth": 100,
+        },
+    ]
+
+    local_rules_columns = [
+        {
+            "field": "Name",
+            "resizable": True,
+            "cellStyle": {"wordBreak": "normal"},
+            "wrapText": True,
+            "autoHeight": True,
+        },
+        {
+            "field": "Description",
+            "headerName": "Description",
+            "resizable": True,
+            "cellStyle": {"wordBreak": "normal", "line-height": "normal"},
+            'cellDataType': 'text',
+            "cellRenderer": "markdown",
+            "wrapText": True,
+            "autoHeight": True,
+            "autoWidth": True,
+            "minWidth": 200,
+        },
+        {
+            "field": "graph",
+            "cellRenderer": "DCC_GraphClickData",
+            "headerName": "DAG",
+            "maxWidth": 900,
+            "minWidth": 300,
+            # "autoHeight": True,
+            # "autoWidth": True,
+        },
+        {
+            "field": "Thresholds (fit data)",
+            "headerName": "Threshold (fit data)",
+            "resizable": True,
+            "cellStyle": {"wordBreak": "normal", "line-height": "normal"},
+            'cellDataType': 'text',
+            "cellRenderer": "markdown",
+            "wrapText": True,
+            "autoHeight": True,
+            "autoWidth": True,
+            "minWidth": 100,
+        },
+        {
+            "field": "Remove",
+            "cellRenderer": "DBC_Button_Simple",
+            "cellRendererParams": {"color": "success"},
+            "minWidth": 70,
+        },
     ]
 
     # editor panel table with rules
@@ -242,6 +317,25 @@ def model_div(app, data, username, hidden=True):
             # "wrapText": True,
             "autoHeight": True,
         }]
+
+    eval_metrics_columns_small = [
+        {
+            "field": "Metric",
+            "resizable": True,
+            "cellStyle": {"wordBreak": "normal"},
+            "minWidth": 100,
+            # "wrapText": True,
+            # "autoWidth": True,
+            "autoHeight": True,
+        },
+        {
+            "field": "Value",
+            "headerName": "Value",
+            "resizable": True,
+            "cellStyle": {"wordBreak": "normal"},
+            # "wrapText": True,
+            "autoHeight": True,
+        }]
     ####################################################################################################################
     # Prepare div blocks for panels
     ####################################################################################################################
@@ -265,7 +359,7 @@ def model_div(app, data, username, hidden=True):
                 id="local_table_div",
                 rowData=local_rules_df.to_dict("records"),
                 columnSize="sizeToFit",
-                columnDefs=short_set_columns,
+                columnDefs=local_rules_columns,
                 defaultColDef={"filter": True, "minWidth": 60},
                 dashGridOptions={"rowHeight": 150, "animateRows": False},
                 style={"height": 400, 'display': 'inline-block', 'resize': 'both', 'overflow': 'auto'}
@@ -278,7 +372,7 @@ def model_div(app, data, username, hidden=True):
                 id="shared_table_div",
                 rowData=shared_rules_df.to_dict("records"),
                 columnSize="sizeToFit",
-                columnDefs=short_set_columns,
+                columnDefs=shared_rules_columns,
                 defaultColDef={"filter": True, "minWidth": 60},
                 dashGridOptions={"rowHeight": 150, "animateRows": False},
                 style={"height": 400, 'display': 'inline-block', 'resize': 'both', 'overflow': 'auto'}
@@ -311,17 +405,21 @@ def model_div(app, data, username, hidden=True):
                                                  children=[html.H2("Local causal DAG and rules"),
                                                            dcc.Dropdown([r.name for r in data[username]["local"]],
                                                                         data[username]["local"][0].name,
-                                                                        id='local-dropdown'),
+                                                                        id='local-dropdown',
+                                                                        style={'width': '80%',
+                                                                               'display': 'inline-block'}
+                                                                        ),
+                                                           html.Button('Edit', id='edit_local_btn', n_clicks=0,
+                                                                       style={'width': '20%',
+                                                                              'padding': '5px 5px 5px 5px'}),
+                                                           html.Br(),
                                                            html.I('Policy name: '),
                                                            html.B(data[username]["local"][0].name,
                                                                   id='local_rule_name'),
                                                            html.Br(),
-                                                           html.Button('Edit', id='edit_local_btn', n_clicks=0,
-                                                                       style={'padding': '10px 10px 10px 10px'}),
-                                                           html.Br(),
-                                                           html.I('DAG:'),
+                                                           # html.I('DAG:'),
                                                            dcc.Checklist(
-                                                               ['Show rule name on edges'],
+                                                               ['Show rule name on DAG edges'],
                                                                [],
                                                                id="show_rule_names_local",
                                                                inline=True
@@ -329,7 +427,36 @@ def model_div(app, data, username, hidden=True):
                                                            dcc.Graph(id='local_dag',
                                                                      figure=get_DAG_fig(
                                                                          data[username]["local"][0].get_DAG(),
-                                                                         show_edge_labels=False)),
+                                                                         show_edge_labels=False),
+                                                                     style={'width': '70%',
+                                                                            'display': 'inline-block'}
+                                                                     ),
+                                                           dag.AgGrid(id="eval_table_id_local",
+                                                                      rowData=[
+                                                                          {
+                                                                              "Metric": "Precision",
+                                                                              "Value": "0.9"},
+                                                                          {
+                                                                              "Metric": "Accuracy",
+                                                                              "Value": "0.8"},
+                                                                          {
+                                                                              "Metric": "F1 score",
+                                                                              "Value": "0.52"},
+                                                                          {
+                                                                              "Metric": "Recall",
+                                                                              "Value": "0.48"}
+                                                                      ],
+                                                                      columnSize="sizeToFit",
+                                                                      columnDefs=eval_metrics_columns_small,
+                                                                      defaultColDef={
+                                                                          "filter": False,
+                                                                          "minWidth": 60},
+                                                                      style={
+                                                                          'width': '30%',
+                                                                          "height": "450px",
+                                                                          'display': 'inline-block',
+                                                                          'overflow': 'auto'},
+                                                                      ),
                                                            html.Br(),
                                                            html.I('Rules: '),
                                                            local_table_div,
@@ -340,23 +467,55 @@ def model_div(app, data, username, hidden=True):
                                         html.Div(id="shared_div",
                                                  children=[html.H2("Shared causal DAG and rules"),
                                                            dcc.Dropdown([r.name for r in data["shared"]],
-                                                                        data["shared"][0].name, id='shared-dropdown'),
+                                                                        data["shared"][0].name, id='shared-dropdown',
+                                                                        style={'width': '80%',
+                                                                               'display': 'inline-block'}),
+                                                           html.Button('Edit', id='edit_shared_btn', n_clicks=0,
+                                                                       style={'width': '20%',
+                                                                              'padding': '5px 5px 5px 5px'}),
+                                                           html.Br(),
                                                            html.I('Policy name: '),
                                                            html.B(data["shared"][0].name, id='shared_rule_name'),
                                                            html.Br(),
-                                                           html.Button('Edit', id='edit_shared_btn', n_clicks=0,
-                                                                       style={'padding': '10px 10px 10px 10px'}),
-                                                           html.Br(),
-                                                           html.I('DAG:'),
+                                                           # html.I('DAG:'),
                                                            dcc.Checklist(
-                                                               ['Show rule name on edges'],
+                                                               ['Show rule name on DAG edges'],
                                                                [],
                                                                id="show_rule_names_shared",
                                                                inline=True
                                                            ),
                                                            dcc.Graph(id='shared_dag',
                                                                      figure=get_DAG_fig(data["shared"][0].get_DAG(),
-                                                                                        show_edge_labels=False)),
+                                                                                        show_edge_labels=False),
+                                                                     style={'width': '70%',
+                                                                            'display': 'inline-block'}
+                                                                     ),
+                                                           dag.AgGrid(id="eval_table_id_shared",
+                                                                      rowData=[
+                                                                          {
+                                                                              "Metric": "Precision",
+                                                                              "Value": ""},
+                                                                          {
+                                                                              "Metric": "Accuracy",
+                                                                              "Value": ""},
+                                                                          {
+                                                                              "Metric": "F1 score",
+                                                                              "Value": ""},
+                                                                          {
+                                                                              "Metric": "Recall",
+                                                                              "Value": ""}
+                                                                      ],
+                                                                      columnSize="sizeToFit",
+                                                                      columnDefs=eval_metrics_columns_small,
+                                                                      defaultColDef={
+                                                                          "filter": False,
+                                                                          "minWidth": 60},
+                                                                      style={
+                                                                          'width': '30%',
+                                                                          "height": "450px",
+                                                                          'display': 'inline-block',
+                                                                          'overflow': 'auto'},
+                                                                      ),
                                                            html.Br(),
                                                            html.I('Rules: '),
                                                            shared_table_div,
@@ -368,17 +527,14 @@ def model_div(app, data, username, hidden=True):
                                     ]),
                                     dcc.Tab(label='Rules Library', children=[
                                         html.Div(id="all_rules_div",
-                                                 children=[html.H2("Rules"),
-                                                           html.Br(),
-                                                           # html.Button(
-                                                           #     'Update local thresholds (fit to historical data)',
-                                                           #     id='local_fit_btn',
-                                                           #     n_clicks=0,
-                                                           #     style={'padding': '10px 10px 10px 10px'}),
+                                                 children=[html.H2("Rules", style={'display': 'inline-block'}),
+                                                           #html.Br(),
                                                            html.Button('Share local thresholds (for all rules)',
                                                                        id='share_thresholds_btn',
                                                                        n_clicks=0,
-                                                                       style={'padding': '10px 10px 10px 10px'}),
+                                                                       style={'padding': '10px 10px 10px 10px',
+                                                                              'display': 'inline-block',
+                                                                              "float": "right"}),
                                                            html.Br(),
                                                            rules_table_div,
                                                            ],
@@ -411,7 +567,7 @@ def model_div(app, data, username, hidden=True):
                                                                                           style={
                                                                                               'padding': '10px 10px 10px 10px'}),
                                                                               html.Br(),
-                                                                              html.I('DAG: '),
+                                                                              # html.I('DAG: '),
                                                                               dcc.Checklist(
                                                                                   ['Show rule name on edges'],
                                                                                   [],
