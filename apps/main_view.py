@@ -26,7 +26,7 @@ def main_div(app, users, data, login_manager):
                'align-items': 'center', 'justify-content': 'center',
                },
         children=[
-            html.Div(children=[html.H1("CCD Demo: Collaborative Causal Discovery")],
+            html.Div(children=[html.H1("CCaT - Collaborative Causal Discovery Tool")],
                      id="header_div",
                      className='12md',
                      style={'width': '100%', 'display': 'flex', 'padding': '10px 10px 20px 20px',

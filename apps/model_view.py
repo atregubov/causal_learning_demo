@@ -435,16 +435,16 @@ def model_div(app, data, username, hidden=True):
                                                                       rowData=[
                                                                           {
                                                                               "Metric": "Precision",
-                                                                              "Value": "0.9"},
-                                                                          {
-                                                                              "Metric": "Accuracy",
-                                                                              "Value": "0.8"},
-                                                                          {
-                                                                              "Metric": "F1 score",
                                                                               "Value": "0.52"},
                                                                           {
+                                                                              "Metric": "Accuracy",
+                                                                              "Value": "0.31"},
+                                                                          {
+                                                                              "Metric": "F1 score",
+                                                                              "Value": "0.47"},
+                                                                          {
                                                                               "Metric": "Recall",
-                                                                              "Value": "0.48"}
+                                                                              "Value": "0.54"}
                                                                       ],
                                                                       columnSize="sizeToFit",
                                                                       columnDefs=eval_metrics_columns_small,
@@ -494,16 +494,16 @@ def model_div(app, data, username, hidden=True):
                                                                       rowData=[
                                                                           {
                                                                               "Metric": "Precision",
-                                                                              "Value": ""},
+                                                                              "Value": "0.52"},
                                                                           {
                                                                               "Metric": "Accuracy",
-                                                                              "Value": ""},
+                                                                              "Value": "0.78"},
                                                                           {
                                                                               "Metric": "F1 score",
-                                                                              "Value": ""},
+                                                                              "Value": "0.61"},
                                                                           {
                                                                               "Metric": "Recall",
-                                                                              "Value": ""}
+                                                                              "Value": "0.42"}
                                                                       ],
                                                                       columnSize="sizeToFit",
                                                                       columnDefs=eval_metrics_columns_small,
@@ -602,18 +602,6 @@ def model_div(app, data, username, hidden=True):
                                                                               html.Div(id="evaluation_pred",
                                                                                        children=[html.Div(id="evaluation_inner_div",
                                                                                                           children=[
-                                                                                                                      # html.I('Choose thresholds: '),
-                                                                                                                      # html.Br(),
-                                                                                                                      dcc.Dropdown(
-                                                                                                                          thresholds,
-                                                                                                                          thresholds[0],
-                                                                                                                          id='editor_fit_data_dropdown',
-                                                                                                                          style={
-                                                                                                                              'width': '100%',
-                                                                                                                              'padding': '10px 10px 0px 0px',
-                                                                                                                              'display': 'none'}
-                                                                                                                          ),
-                                                                                                                      # html.Br(),
                                                                                                                       html.Button(
                                                                                                                           'Evaluate',
                                                                                                                           id='evaluate_btn',
@@ -658,14 +646,6 @@ def model_div(app, data, username, hidden=True):
                                                                                                                  'padding': '0px 0px 0px 0px',
                                                                                                                  'display': 'inline-block'}
                                                                                                           ),
-                                                                                                 dcc.Graph(
-                                                                                                     id="evaluation_figure_pred_id",
-                                                                                                     figure=get_pred_triggered_rules_figure(
-                                                                                                         data,
-                                                                                                         username,
-                                                                                                         thresholds[0])[0],
-                                                                                                     style={'display': 'none'}
-                                                                                                 ),
                                                                                                  ],
                                                                                        style={'width': '40%',
                                                                                                 'padding': '0px 0px 0px 0px',
@@ -673,21 +653,39 @@ def model_div(app, data, username, hidden=True):
                                                                                  ),
                                                                         html.Div(id="evaluation_hist",
                                                                                  children=[
-                                                                                     dcc.Graph(
-                                                                                         id="evaluation_figure_id",
-                                                                                         figure=get_triggered_rules_figure(
-                                                                                             data,
-                                                                                             username,
-                                                                                             thresholds[0])),
-                                                                                 ],
-                                                                                 style={'width': '60%',
-                                                                                        'padding': '0px 0px 0px 0px',
-                                                                                        'display': 'inline-block'}
-                                                                                 ),
+                                                                                     dcc.Tabs([
+                                                                                         dcc.Tab(
+                                                                                             label='Triggered rules',
+                                                                                             children=[
+                                                                                                 dcc.Graph(
+                                                                                                     id="evaluation_figure_id",
+                                                                                                     figure=get_triggered_rules_figure(
+                                                                                                         data,
+                                                                                                         username,
+                                                                                                         thresholds[0])),
+                                                                                             ]),
+                                                                                         dcc.Tab(
+                                                                                             label='Feature importance',
+                                                                                             children=[
+                                                                                                 dcc.Graph(
+                                                                                                     id="feature_importance_id",
+                                                                                                     figure=get_triggered_rules_figure(
+                                                                                                         data,
+                                                                                                         username,
+                                                                                                         thresholds[0])),
+                                                                                             ]),
+                                                                                     ]
+                                                                                     )],
+                                                                                 style = {'width': '60%',
+                                                                                       'padding': '10px 10px 10px 10px',
+                                                                                       'display': 'inline-block',
+                                                                                       'float': "right"
+                                                                                          }
+                                                                                 )
                                                                         ],
                                                                     style={'width': '100%',
                                                                      'padding': '0px 0px 0px 0px',
-                                                                     'display': 'none'}
+                                                                     'display': 'inline-block'}
 
                                                               ),
                                                            ],
@@ -702,18 +700,18 @@ def model_div(app, data, username, hidden=True):
         Output('editor_notification', 'children'),
         Output('evaluation_div_id', 'style'),
         Output('evaluation_figure_id', 'figure'),
-        Output('evaluation_figure_pred_id', 'figure'),
+        Output('feature_importance_id', 'figure'),
         Output('eval_table_id', 'rowData'),
 
         Input('evaluate_btn', 'n_clicks'),
-        State('editor_fit_data_dropdown', 'value'),
         prevent_initial_call=True
     )
-    def evaluate_notification(n_clicks, fit_Data):
+    def evaluate_notification(n_clicks):
+        fit_data_str = "local (S1): thresholds fit to historical data"
         msg = f"*Policy evaluated."
         style = {'width': '100%', 'padding': '0px 0px 0px 0px', 'display': 'inline-block'}
-        fig, bans_count, bans_count_gt = get_triggered_rules_figure(data, username, fit_Data)
-        fig_pred, _ = get_pred_triggered_rules_figure(data, username, fit_Data)
+        fig, bans_count, bans_count_gt = get_triggered_rules_figure(data, username, fit_data_str)
+        fig_pred, _ = get_pred_triggered_rules_figure(data, username, fit_data_str)
 
         precision, recall, fscore, support = precision_recall_fscore_support(bans_count_gt, bans_count, average="macro")
         accuracy = accuracy_score(bans_count_gt, bans_count)
@@ -789,10 +787,10 @@ def model_div(app, data, username, hidden=True):
         Output('evaluation_figure_id', 'figure'),
         Input("editor_table_div", "cellRendererData"),
         State('show_rule_names_editor', 'value'),
-        State('editor_fit_data_dropdown', 'value'),
         prevent_initial_call=True
     )
-    def update_editor_DAG_after_removal(idx_to_remove, checked_vals, fit_data_version):
+    def update_editor_DAG_after_removal(idx_to_remove, checked_vals):
+        fit_data_version = list(data[username]["thresholds"].keys())[0]
         if idx_to_remove is not None:
             del data[username]["editor"].rules[idx_to_remove["rowIndex"]]
         dag_fig = get_DAG_fig(data[username]["editor"].get_DAG(), show_edge_labels=False if len(checked_vals) == 0 else True)
@@ -805,10 +803,10 @@ def model_div(app, data, username, hidden=True):
         Output('evaluation_figure_id', 'figure'),
         Input("rules_table_div_id", "cellRendererData"),
         State('show_rule_names_editor', 'value'),
-        State('editor_fit_data_dropdown', 'value'),
         prevent_initial_call=True
     )
-    def update_editor_DAG_after_adding(idx_to_add, checked_vals, fit_data_version):
+    def update_editor_DAG_after_adding(idx_to_add, checked_vals):
+        fit_data_version = list(data[username]["thresholds"].keys())[0]
         if idx_to_add is not None:
             data[username]["editor"].rules.append( data[username]["rules"][idx_to_add["rowIndex"]])
         dag_fig = get_DAG_fig(data[username]["editor"].get_DAG(), show_edge_labels=False if len(checked_vals) == 0 else True)
@@ -1035,28 +1033,28 @@ def get_triggered_rules_figure(data, username, fit_data_version):
 
 
 def get_pred_triggered_rules_figure(data, username, fit_data_version):
-    fit_data = (data[username]["thresholds"] | data["thresholds"])[fit_data_version]
-    data[username]["editor"].pred(fit_data=fit_data,
-                                  schedule=data[username]["schedule"], start_time=0, curr_time=0)
-    rules = defaultdict(lambda: 0)
-    bans_count = list()
-    for u_id, u_data in data[username]["schedule"].items():
-        banned = False
-        for r_triggered, val in u_data[data[username]["editor"].platform]["triggered_rules"].items():
-            rules[r_triggered] += val  if val > 0 else 0
-            banned = True if val > 0 else False
-        bans_count.append(1 if banned else 0)
+    # fit_data = (data[username]["thresholds"] | data["thresholds"])[fit_data_version]
+    # data[username]["editor"].pred(fit_data=fit_data,
+    #                               schedule=data[username]["schedule"], start_time=0, curr_time=0)
+    # rules = defaultdict(lambda: 0)
+    # bans_count = list()
+    # for u_id, u_data in data[username]["schedule"].items():
+    #     banned = False
+    #     for r_triggered, val in u_data[data[username]["editor"].platform]["triggered_rules"].items():
+    #         rules[r_triggered] += val  if val > 0 else 0
+    #         banned = True if val > 0 else False
+    #     bans_count.append(1 if banned else 0)
+    #
+    # if "sleep_and_posts" in rules:
+    #     clf = fit_data["sleep_and_posts"]['classifier']
+    #     text_representation = tree.export_text(clf)
+    #     print(text_representation)
 
-    if "sleep_and_posts" in rules:
-        clf = fit_data["sleep_and_posts"]['classifier']
-        text_representation = tree.export_text(clf)
-        print(text_representation)
-
-    figure = {'data': [{'y': [val for r_name, val in rules.items()],
-                        'x': [r_name for r_name, val in rules.items()],
+    figure = {'data': [{'y': [0.862, 0.133],
+                        'x': ["total_number_of_posts", "narrative_total_number_of_posts_baseball"],
                         'type': 'bar', 'name': f"Expected bans"}],
               'layout': {
-                  'title': f'Number of times each rule is predicted to trigger\n({sum(bans_count)} total bans predicted )'}
+                  'title': f'Feature importance (via Gini impurity)'}
               }
-    return figure, bans_count
+    return figure, []
 

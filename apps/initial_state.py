@@ -24,12 +24,13 @@ def create_initial_state_data() -> dict:
     s1_historical_data_fit = get_local_data_fit_for_all_rules(s1_historical_schedule)
 
     data = {"s1": {"rules": [r for r in RULES.values()],
-                   "local": [AggregateRule("S1: number of posts and sleep hours rule",
-                                           "number_of_posts > 100 -> ban",
+                   "local": [AggregateRule("S1: Total number of posts and number of posts on baseball (decision tree classifier)",
+                                           "umber_of_posts_baseball > 100 -> ban",
                                            "ban",
                                            shared_by="Me",
-                                           rules=[TotalLinesOfPostsRule(),
-                                                  SleepHoursRule()]),
+                                           rules=[
+                                               NarrativeNumberOfPostsRule("baseball"),
+                                           ]),
                              AggregateRule("S1: Local sleep policy",
                                            "Trigger ban if constituent rule triggered",
                                            "ban",
@@ -40,19 +41,26 @@ def create_initial_state_data() -> dict:
                    "historical_schedule": s1_historical_schedule,
                    "thresholds": {"local (S1): thresholds fit to historical data": s1_historical_data_fit
                                   },
-                   "editor": AggregateRule("S1+S2 combined policy: number of posts and sleep hours policy",
-                                           "number_of_posts > <threshold> -> ban "
-                                           "\nor number_of_sleep_hours < <threshold> -> ban",
+                   "editor": AggregateRule("S1: Total number of posts and number of posts on baseball (decision tree classifier)",
+                                           "number_of_posts_baseball > 100 -> ban",
                                            "ban",
-                                           [
-                                            # TotalLinesOfPostsRule(),
-                                            # SleepHoursRule().
-                                            SleepAndPostsRule(),
-                                            NarrativeRatioRule(narrative="baseball"),
-                                            TotalLinesOfPostsRule(),
-                                            TotalNumberOfPostsCauseSleepHoursRule(),
-                                            TotalNumberOfLinesCauseSleepHoursRule()
-                                            ]),
+                                           shared_by="Me",
+                                           rules=[
+                                               PostsAndBaseballPostsRule()]),
+
+                       # AggregateRule("S1+S2 combined policy: number of posts and sleep hours policy",
+                       #                     "number_of_posts > <threshold> -> ban "
+                       #                     "\nor number_of_sleep_hours < <threshold> -> ban",
+                       #                     "ban",
+                       #                     [
+                       #                      TotalLinesOfPostsRule(),
+                       #                      SleepHoursRule(),
+                       #                      # SleepAndPostsRule(),
+                       #                      # NarrativeRatioRule(narrative="baseball"),
+                       #                      # TotalLinesOfPostsRule(),
+                       #                      # TotalNumberOfPostsCauseSleepHoursRule(),
+                       #                      # TotalNumberOfLinesCauseSleepHoursRule()
+                       #                      ]),
                    },
             "s2": {"rules": [r for r in RULES.values()],
                    "local": [AggregateRule("S2: sleep hours rule",
@@ -106,21 +114,22 @@ def create_initial_state_data() -> dict:
                                            "ban",
                                            [SleepHoursRule()])
                    },
-            "shared": [AggregateRule("Shared (from site 2): Policy on number of posts",
-                                     "Trigger ban if constituent rule triggered",
+            "shared": [
+                       # AggregateRule("Shared (from site 2): Policy on number of posts",
+                       #               "Trigger ban if constituent rule triggered",
+                       #               "ban",
+                       #               shared_by="S2",
+                       #               rules=[SleepAndPostsRule(),
+                       #                      NarrativeRatioRule(narrative="baseball"),
+                       #                      TotalLinesOfPostsRule(),
+                       #                      TotalNumberOfPostsCauseSleepHoursRule(),
+                       #                      TotalNumberOfLinesCauseSleepHoursRule()],
+                       #               ),
+                       AggregateRule("Shared (from site 2): Total number of posts policy",
+                                     "If number of posts > 50 -> ban",
                                      "ban",
                                      shared_by="S2",
-                                     rules=[SleepAndPostsRule(),
-                                            NarrativeRatioRule(narrative="baseball"),
-                                            TotalLinesOfPostsRule(),
-                                            TotalNumberOfPostsCauseSleepHoursRule(),
-                                            TotalNumberOfLinesCauseSleepHoursRule()],
-                                     ),
-                       AggregateRule("Shared (from site 2): sleep hours ban policy",
-                                     "If number of sleep hours < 9 -> ban",
-                                     "ban",
-                                     shared_by="S2",
-                                     rules=[SleepHoursRule()]),
+                                     rules=[TotalNumberOfPostsRule()]),
 
                        AggregateRule("Shared (from site 1): number of posts policy",
                                      "number_of_posts > 100 -> ban",
